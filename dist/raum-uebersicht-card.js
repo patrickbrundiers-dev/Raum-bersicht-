@@ -2,7 +2,7 @@
  * Zeigt alle Räume (Areas) als Karten und öffnet pro Raum ein Popup
  * mit allen Geräten, nach Kategorien sortiert. Keine Entity-IDs nötig.
  */
-const RUC_VERSION = "3.3.0";
+const RUC_VERSION = "3.3.1";
 
 const CATEGORIES = [
   { key: "climate", title: "Heizung und Klima", icon: "mdi:radiator", domains: ["climate", "water_heater"] },
@@ -899,6 +899,19 @@ class RaumUebersichtCard extends HTMLElement {
   }
 
   _render() {
+    // Schutz gegen Endlosschleifen: mehr als 30 Zeichnungen pro Sekunde werden verworfen
+    const now = Date.now();
+    this._rc = (this._rc || []).filter((t) => now - t < 1000);
+    if (this._rc.length > 30) { console.warn("raum-uebersicht-card: zu viele Zeichnungen, übersprungen"); return; }
+    this._rc.push(now);
+    try { this._renderNow(); } catch (e) {
+      console.error("raum-uebersicht-card Fehler:", e);
+      this.shadowRoot.innerHTML = `<ha-card><p style="padding:16px;color:var(--error-color,#db4437)">Raumübersicht Fehler: ${esc(String(e && e.message || e))}</p></ha-card>`;
+      this._sig = "";
+    }
+  }
+
+  _renderNow() {
     if (!this._hass || !this._config || this._drag) return;
     const rooms = this._rooms();
     const roomMode = !!this._config.room;
