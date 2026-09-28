@@ -2,7 +2,7 @@
  * Zeigt alle Räume (Areas) als Karten und öffnet pro Raum ein Popup
  * mit allen Geräten, nach Kategorien sortiert. Keine Entity-IDs nötig.
  */
-const RUC_VERSION = "2.0.0";
+const RUC_VERSION = "2.1.0";
 
 const CATEGORIES = [
   { key: "climate", title: "Heizung und Klima", icon: "mdi:radiator", domains: ["climate", "water_heater"] },
@@ -40,7 +40,7 @@ class RaumUebersichtCard extends HTMLElement {
     this._hist = {};
     this.shadowRoot.addEventListener("click", (e) => this._onClick(e));
     this.shadowRoot.addEventListener("keydown", (e) => {
-      if ((e.key === "Enter" || e.key === " ") && e.target && e.target.dataset && e.target.dataset.action === "open") {
+      if ((e.key === "Enter" || e.key === " ") && e.target && e.target.getAttribute && e.target.getAttribute("role") === "button") {
         e.preventDefault();
         this._onClick(e);
       }
@@ -244,43 +244,58 @@ class RaumUebersichtCard extends HTMLElement {
     const t = this._num(r.temp);
     const hv = this._num(r.hum);
     const winOpen = r.win && this._hass.states[r.win].state === "on";
-    const winUnknown = r.win && ["unavailable", "unknown"].includes(this._hass.states[r.win].state);
     const clim = r.clim && this._hass.states[r.clim];
     const pend = clim && this._pend[r.clim];
     const target = pend && Date.now() - pend.t < 4000 ? pend.v : clim && clim.attributes.temperature;
     const heating = clim && clim.state !== "off" && clim.state !== "unavailable";
     const vent = r.vent && this._hass.states[r.vent];
-    const tempTxt = t == null ? "–" : `${t.toFixed(1).replace(".", ",")} °C`;
+    const tt = t == null ? "–" : t.toFixed(1).replace(".", ",");
+    const hc = this._humClass(hv);
+    const num = (v) => String(v).replace(".", ",");
+    const btn = (icon, attrs, label, cls = "") => `<button class="step ${cls}" ${attrs} aria-label="${label}"><ha-icon icon="${icon}"></ha-icon></button>`;
+    let heat = "";
+    if (clim && heating && target != null) {
+      heat = `<div class="heat">
+        ${btn("mdi:minus", `data-action="step" data-dir="-1" data-entity="${esc(r.clim)}"`, "Kälter")}
+        <span class="hv2"><ha-icon icon="mdi:fire"></ha-icon>${num(target)} °C</span>
+        ${btn("mdi:plus", `data-action="step" data-dir="1" data-entity="${esc(r.clim)}"`, "Wärmer")}
+        ${btn("mdi:power", `data-action="heat" data-mode="off" data-entity="${esc(r.clim)}"`, "Heizung ausschalten", "pw on")}
+      </div>`;
+    } else if (clim) {
+      heat = `<div class="heat off">
+        <span class="hv2"><ha-icon icon="mdi:radiator-off"></ha-icon>${heating ? esc(clim.state) : "Heizung aus"}</span>
+        ${clim.state !== "unavailable" ? btn("mdi:power", `data-action="heat" data-mode="on" data-entity="${esc(r.clim)}"`, "Heizung einschalten", "pw") : ""}
+      </div>`;
+    }
+    const ventShow = vent && !["unknown", "unavailable"].includes(vent.state);
     return `
       <div class="room ${r.level}" role="button" tabindex="0" data-action="open" data-room="${esc(r.id)}">
         <div class="top">
           <span class="ic"><ha-icon icon="${esc(r.icon)}"></ha-icon></span>
           <span class="name">${esc(r.name)}</span>
-          ${r.win ? `<span class="pill ${winOpen ? "bad" : winUnknown ? "" : "ok"}"><ha-icon icon="${winOpen ? "mdi:window-open-variant" : "mdi:window-closed-variant"}"></ha-icon>${winOpen ? this._since(r.win) : winUnknown ? "?" : "zu"}</span>` : ""}
+          ${winOpen ? `<span class="wopen"><ha-icon icon="mdi:window-open-variant"></ha-icon>${this._since(r.win)}</span>` : ""}
         </div>
-        <div class="temp">${tempTxt}</div>
-        <div class="meta">
-          ${hv != null ? `<span class="pill ${this._humClass(hv)}"><ha-icon icon="mdi:water-percent"></ha-icon>${Math.round(hv)} %</span>` : ""}
-          ${clim ? (heating && target != null
-            ? `<span class="ctl"><button class="step" data-action="step" data-dir="-1" data-entity="${esc(r.clim)}" aria-label="Kälter"><ha-icon icon="mdi:minus"></ha-icon></button><span class="pill heat"><ha-icon icon="mdi:radiator"></ha-icon>${String(target).replace(".", ",")} °C</span><button class="step" data-action="step" data-dir="1" data-entity="${esc(r.clim)}" aria-label="Wärmer"><ha-icon icon="mdi:plus"></ha-icon></button><button class="step pw on" data-action="heat" data-mode="off" data-entity="${esc(r.clim)}" aria-label="Heizung ausschalten"><ha-icon icon="mdi:power"></ha-icon></button></span>`
-            : `<span class="ctl"><span class="pill ${heating ? "heat" : ""}"><ha-icon icon="mdi:radiator"></ha-icon>${heating ? esc(clim.state) : "Aus"}</span>${clim.state !== "unavailable" ? `<button class="step pw" data-action="heat" data-mode="on" data-entity="${esc(r.clim)}" aria-label="Heizung einschalten"><ha-icon icon="mdi:power"></ha-icon></button>` : ""}</span>`) : ""}
-          ${r.power != null && r.power >= 1 ? `<span class="pill"><ha-icon icon="mdi:flash-outline"></ha-icon>${this._fmtW(r.power)}</span>` : ""}
-        </div>
-        ${vent && !["unknown", "unavailable"].includes(vent.state) ? `<div class="vent"><ha-icon icon="mdi:weather-windy"></ha-icon><span class="vt">${esc(this._fmt(r.vent))}</span>${r.announce ? `<button class="ann" data-action="announce" data-room="${esc(r.id)}"><ha-icon icon="mdi:bullhorn-outline"></ha-icon>${this._flash === r.id ? "Angesagt" : "Ansagen"}</button>` : ""}</div>` : ""}
+        <div class="tline"><span class="temp">${tt}<small>°C</small></span>${clim && heating && target != null ? `<span class="tgt">Ziel ${num(target)}°</span>` : ""}</div>
+        ${hv != null ? `<div class="hum ${hc}"><span class="hbar"><i style="width:${Math.max(4, Math.min(100, Math.round(hv)))}%"></i></span><span class="hp">${Math.round(hv)} %</span></div>` : ""}
+        ${heat}
+        ${r.power != null && r.power >= 1 ? `<div class="pow"><ha-icon icon="mdi:flash-outline"></ha-icon>${this._fmtW(r.power)}</div>` : ""}
+        ${ventShow ? `<div class="vent ${r.level}"><ha-icon icon="mdi:weather-windy"></ha-icon><span class="vt">${esc(this._fmt(r.vent))}</span>${r.announce ? `<button class="ann" data-action="announce" data-room="${esc(r.id)}" aria-label="Ansagen"><ha-icon icon="${this._flash === r.id ? "mdi:check" : "mdi:bullhorn-outline"}"></ha-icon></button>` : ""}</div>` : ""}
       </div>`;
   }
 
   _deviceRow(id) {
-    const s = this._hass.states[id];
+    const st = this._hass.states[id];
     const domain = id.split(".")[0];
     const toggle = TOGGLE_DOMAINS.includes(domain);
-    const on = !OFF_STATES.includes(s.state);
-    const dis = s.state === "unavailable";
+    const dis = st.state === "unavailable";
+    const on = !OFF_STATES.includes(st.state);
+    const active = on && domain !== "sensor" && domain !== "binary_sensor";
+    const act = toggle && !dis ? "toggle" : "info";
     return `
-      <div class="dev ${on && domain !== "sensor" && domain !== "binary_sensor" ? "on" : ""} ${dis ? "dis" : ""}" data-action="info" data-entity="${esc(id)}">
-        <span class="dic"><ha-icon icon="${esc(this._icon(id))}"></ha-icon></span>
-        <span class="dt"><span class="dn">${esc(this._name(id))}</span><span class="ds">${esc(this._fmt(id))}</span></span>
-        ${toggle && !dis ? `<button class="tg ${on ? "on" : ""}" data-action="toggle" data-entity="${esc(id)}" aria-label="Umschalten"><i></i></button>` : ""}
+      <div class="tile ${active ? "on" : ""} ${dis ? "dis" : ""} ${domain === "climate" ? "wide" : ""}" role="button" tabindex="0" data-action="${act}" data-entity="${esc(id)}">
+        <span class="tt"><span class="dic"><ha-icon icon="${esc(this._icon(id))}"></ha-icon></span>${act === "toggle" ? `<button class="ib" data-action="info" data-entity="${esc(id)}" aria-label="Details"><ha-icon icon="mdi:dots-horizontal"></ha-icon></button>` : ""}</span>
+        <span class="dn">${esc(this._name(id))}</span>
+        <span class="ds">${esc(this._fmt(id))}</span>
       </div>`;
   }
 
@@ -458,11 +473,11 @@ class RaumUebersichtCard extends HTMLElement {
           ${offIds.length ? `<button class="alloff" data-action="alloff" data-room="${esc(r.id)}"><ha-icon icon="mdi:power"></ha-icon>${this._flash === "off:" + r.id ? "Ausgeschaltet" : `Alles aus (${offIds.length})`}</button>` : ""}
           ${groups.length ? groups.map((g) => `
             <div class="cat"><ha-icon icon="${g.c.icon}"></ha-icon>${g.c.title}</div>
-            ${g.items.map((id) => this._deviceRow(id)).join("")}`).join("") : `<p class="empty">Diesem Bereich sind noch keine Geräte zugeordnet.</p>`}
+            <div class="tiles">${g.items.map((id) => this._deviceRow(id)).join("")}</div>`).join("") : `<p class="empty">Diesem Bereich sind noch keine Geräte zugeordnet.</p>`}
           ${this._insights(r)}
           ${more.length ? `
             <button class="more" data-action="more" data-room="${esc(r.id)}"><ha-icon icon="${moreOpen ? "mdi:chevron-up" : "mdi:chevron-down"}"></ha-icon>${moreOpen ? "Weitere Sensoren ausblenden" : `Weitere Sensoren anzeigen (${more.length})`}</button>
-            ${moreOpen ? more.map((id) => this._deviceRow(id)).join("") : ""}` : ""}
+            ${moreOpen ? `<div class="tiles">${more.map((id) => this._deviceRow(id)).join("")}</div>` : ""}` : ""}
         </div>
       </div>`;
   }
@@ -565,82 +580,124 @@ class RaumUebersichtCard extends HTMLElement {
 
 const RUC_STYLE = `
   :host { display: block; }
+  * { box-sizing: border-box; }
   ha-card { padding: 12px; background: transparent; box-shadow: none; border: none; }
-  .title { font-size: 20px; font-weight: 500; color: var(--primary-text-color); margin: 4px 4px 12px; }
-  .grid { display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); gap: 12px; }
+  button { font: inherit; color: inherit; -webkit-tap-highlight-color: transparent; }
+  .title { font-size: 22px; font-weight: 500; letter-spacing: -.01em; color: var(--primary-text-color); margin: 4px 4px 12px; }
   .empty { color: var(--secondary-text-color); font-size: 14px; padding: 8px; }
-  button { font: inherit; color: inherit; }
-  .room { text-align: left; cursor: pointer; outline: none; padding: 12px; border-radius: 16px; border: 1px solid var(--divider-color);
-    background: var(--ha-card-background, var(--card-background-color)); display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-  .room.bad { border-color: var(--error-color); }
-  .room.warn { border-color: var(--warning-color, #f4b400); }
+  .grid { display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); gap: 12px; }
+
+  .summary { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 2px 14px; }
+  .pill { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; padding: 6px 12px 6px 9px; border-radius: 999px; white-space: nowrap;
+    background: color-mix(in srgb, var(--card-background-color) 70%, transparent); color: var(--primary-text-color);
+    border: 1px solid color-mix(in srgb, var(--divider-color) 60%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); --mdc-icon-size: 16px; }
+  .pill.ok { background: color-mix(in srgb, var(--success-color, #43a047) 20%, transparent); color: var(--success-color, #66bb6a); border-color: transparent; }
+  .pill.bad { background: color-mix(in srgb, var(--error-color, #db4437) 22%, transparent); color: var(--error-color, #ef5350); border-color: transparent; }
+  .pill.heat { background: color-mix(in srgb, var(--state-climate-heat-color, #ff8100) 20%, transparent); color: var(--state-climate-heat-color, #ff9800); border-color: transparent; }
+
+  .room { position: relative; text-align: left; cursor: pointer; outline: none; min-width: 0; display: flex; flex-direction: column; gap: 10px; padding: 14px;
+    border-radius: 24px; border: 1px solid color-mix(in srgb, var(--divider-color) 55%, transparent);
+    background: color-mix(in srgb, var(--ha-card-background, var(--card-background-color)) 80%, transparent);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); transition: transform .12s ease, border-color .2s ease; }
+  .room:active { transform: scale(.985); }
   .room:focus-visible { box-shadow: 0 0 0 2px var(--primary-color); }
-  .ctl { display: inline-flex; align-items: center; gap: 4px; }
-  .step { width: 28px; height: 28px; padding: 0; border: none; border-radius: 50%; cursor: pointer; display: inline-flex;
-    align-items: center; justify-content: center; background: var(--secondary-background-color); color: var(--primary-text-color); --mdc-icon-size: 16px; }
-  .step:active { transform: scale(.94); }
-  .vt { flex: 1; min-width: 0; }
-  .ann { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; padding: 4px 10px 4px 6px; border-radius: 999px; cursor: pointer;
-    border: 1px solid var(--divider-color); background: none; color: var(--primary-text-color); --mdc-icon-size: 14px; white-space: nowrap; }
-  .top { display: flex; align-items: center; gap: 8px; }
-  .ic { color: var(--secondary-text-color); --mdc-icon-size: 20px; display: flex; }
-  .name { flex: 1; font-size: 15px; font-weight: 500; color: var(--primary-text-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .temp { font-size: 26px; font-weight: 500; color: var(--primary-text-color); }
-  .meta { display: flex; gap: 6px; flex-wrap: wrap; }
-  .pill { display: inline-flex; align-items: center; gap: 3px; font-size: 12px; padding: 3px 8px 3px 5px; border-radius: 999px;
-    background: var(--secondary-background-color); color: var(--secondary-text-color); --mdc-icon-size: 14px; white-space: nowrap; }
-  .pill.ok { background: color-mix(in srgb, var(--success-color, #43a047) 18%, transparent); color: var(--success-color, #2e7d32); }
-  .pill.warn { background: color-mix(in srgb, var(--warning-color, #f4b400) 22%, transparent); color: var(--warning-color, #b26a00); }
-  .pill.bad { background: color-mix(in srgb, var(--error-color, #db4437) 18%, transparent); color: var(--error-color, #c62828); }
-  .pill.heat { background: color-mix(in srgb, var(--state-climate-heat-color, #ff8100) 20%, transparent); color: var(--state-climate-heat-color, #e65100); }
-  .vent { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--secondary-text-color); --mdc-icon-size: 16px;
-    padding-top: 8px; border-top: 1px solid var(--divider-color); }
-  .overlay { position: fixed; inset: 0; z-index: 9; background: rgba(0,0,0,.45); display: flex; align-items: flex-end; justify-content: center; }
-  .sheet { width: 100%; max-width: 560px; max-height: 88vh; overflow: auto; box-sizing: border-box; padding: 8px 16px 24px;
-    background: var(--card-background-color); border-radius: 20px 20px 0 0; }
-  .grab { width: 36px; height: 4px; border-radius: 2px; background: var(--divider-color); margin: 0 auto 12px; }
-  .head { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
-  .hic { width: 42px; height: 42px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
-    background: color-mix(in srgb, var(--primary-color) 18%, transparent); color: var(--primary-color); --mdc-icon-size: 22px; }
-  .ht { flex: 1; display: flex; flex-direction: column; }
-  .hn { font-size: 20px; font-weight: 500; color: var(--primary-text-color); }
+  .room.bad { border-color: color-mix(in srgb, var(--error-color, #db4437) 55%, transparent);
+    background: linear-gradient(160deg, color-mix(in srgb, var(--error-color, #db4437) 18%, transparent), transparent 65%), color-mix(in srgb, var(--ha-card-background, var(--card-background-color)) 80%, transparent); }
+  .room.warn { border-color: color-mix(in srgb, var(--warning-color, #f4b400) 45%, transparent);
+    background: linear-gradient(160deg, color-mix(in srgb, var(--warning-color, #f4b400) 14%, transparent), transparent 65%), color-mix(in srgb, var(--ha-card-background, var(--card-background-color)) 80%, transparent); }
+
+  .top { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .ic { flex: none; width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; --mdc-icon-size: 19px;
+    background: color-mix(in srgb, var(--primary-color) 18%, transparent); color: var(--primary-color); }
+  .room.bad .ic { background: color-mix(in srgb, var(--error-color, #db4437) 22%, transparent); color: var(--error-color, #ef5350); }
+  .room.warn .ic { background: color-mix(in srgb, var(--warning-color, #f4b400) 22%, transparent); color: var(--warning-color, #f4b400); }
+  .name { flex: 1; min-width: 0; font-size: 15px; font-weight: 500; color: var(--primary-text-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .wopen { flex: none; display: inline-flex; align-items: center; gap: 3px; font-size: 12px; padding: 3px 8px 3px 5px; border-radius: 999px; --mdc-icon-size: 14px;
+    background: color-mix(in srgb, var(--error-color, #db4437) 24%, transparent); color: var(--error-color, #ef5350); }
+
+  .tline { display: flex; align-items: baseline; gap: 8px; }
+  .temp { font-size: 36px; line-height: 1; font-weight: 400; letter-spacing: -.03em; color: var(--primary-text-color); }
+  .temp small { font-size: 15px; font-weight: 400; letter-spacing: 0; margin-left: 2px; color: var(--secondary-text-color); }
+  .tgt { font-size: 13px; color: var(--secondary-text-color); }
+
+  .hum { display: flex; align-items: center; gap: 8px; }
+  .hbar { flex: 1; height: 6px; border-radius: 3px; overflow: hidden; background: color-mix(in srgb, var(--primary-text-color) 12%, transparent); }
+  .hbar i { display: block; height: 100%; border-radius: 3px; background: var(--secondary-text-color); }
+  .hum.ok .hbar i { background: var(--success-color, #43a047); }
+  .hum.warn .hbar i { background: var(--warning-color, #f4b400); }
+  .hum.bad .hbar i { background: var(--error-color, #db4437); }
+  .hp { font-size: 13px; font-weight: 500; min-width: 38px; text-align: right; color: var(--primary-text-color); }
+  .hum.ok .hp { color: var(--success-color, #66bb6a); }
+  .hum.warn .hp { color: var(--warning-color, #f4b400); }
+  .hum.bad .hp { color: var(--error-color, #ef5350); }
+
+  .heat { display: flex; align-items: center; gap: 4px; padding: 4px; border-radius: 999px; background: color-mix(in srgb, var(--primary-text-color) 8%, transparent); }
+  .hv2 { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 4px; font-size: 14px; font-weight: 500; white-space: nowrap; --mdc-icon-size: 16px;
+    color: var(--state-climate-heat-color, #ff9800); }
+  .heat.off .hv2 { justify-content: flex-start; padding-left: 8px; color: var(--secondary-text-color); font-weight: 400; }
+  .step { flex: none; width: 30px; height: 30px; padding: 0; border: none; border-radius: 50%; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+    background: color-mix(in srgb, var(--primary-text-color) 10%, transparent); color: var(--primary-text-color); --mdc-icon-size: 18px; transition: transform .1s ease; }
+  .step:active { transform: scale(.9); }
+  .pw.on { background: color-mix(in srgb, var(--state-climate-heat-color, #ff8100) 28%, transparent); color: var(--state-climate-heat-color, #ff9800); }
+
+  .pow { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--secondary-text-color); --mdc-icon-size: 15px; }
+  .vent { margin-top: auto; display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 10px; border-radius: 14px; font-size: 12px; line-height: 1.35; --mdc-icon-size: 16px;
+    background: color-mix(in srgb, var(--primary-text-color) 7%, transparent); color: var(--secondary-text-color); }
+  .vent.warn { background: color-mix(in srgb, var(--warning-color, #f4b400) 16%, transparent); color: var(--primary-text-color); }
+  .vent.bad { background: color-mix(in srgb, var(--error-color, #db4437) 16%, transparent); color: var(--primary-text-color); }
+  .vt { flex: 1; min-width: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .ann { flex: none; width: 28px; height: 28px; padding: 0; border: none; border-radius: 50%; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+    background: color-mix(in srgb, var(--primary-text-color) 12%, transparent); color: var(--primary-text-color); --mdc-icon-size: 16px; }
+
+  .overlay { position: fixed; inset: 0; z-index: 9; display: flex; align-items: flex-end; justify-content: center; background: rgba(0,0,0,.5);
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); animation: fade .2s ease; }
+  .sheet { width: 100%; max-width: 600px; max-height: 90vh; overflow: auto; padding: 8px 16px 28px; background: var(--card-background-color);
+    border-radius: 28px 28px 0 0; animation: up .28s cubic-bezier(.2,.8,.2,1); }
+  @keyframes up { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+  @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+  .grab { width: 40px; height: 4px; border-radius: 2px; background: var(--divider-color); margin: 0 auto 14px; }
+  .head { display: flex; align-items: center; gap: 12px; margin-bottom: 2px; }
+  .hic { width: 46px; height: 46px; border-radius: 50%; display: flex; align-items: center; justify-content: center; --mdc-icon-size: 24px;
+    background: color-mix(in srgb, var(--primary-color) 20%, transparent); color: var(--primary-color); }
+  .ht { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .hn { font-size: 22px; font-weight: 500; letter-spacing: -.01em; color: var(--primary-text-color); }
   .hs { font-size: 12px; color: var(--secondary-text-color); }
-  .x { border: none; background: none; cursor: pointer; color: var(--secondary-text-color); padding: 6px; --mdc-icon-size: 22px; }
-  .summary { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 4px 12px; }
-  .summary .pill { font-size: 13px; padding: 5px 10px 5px 7px; --mdc-icon-size: 16px; }
-  .pw { margin-left: 2px; }
-  .pw.on { background: color-mix(in srgb, var(--state-climate-heat-color, #ff8100) 22%, transparent); color: var(--state-climate-heat-color, #e65100); }
-  .alloff { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; margin: 12px 0 0; padding: 10px; border-radius: 14px;
-    border: none; cursor: pointer; font-size: 14px; background: var(--secondary-background-color); color: var(--primary-text-color); --mdc-icon-size: 18px; }
+  .x { flex: none; width: 36px; height: 36px; border: none; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; --mdc-icon-size: 20px;
+    background: color-mix(in srgb, var(--primary-text-color) 10%, transparent); color: var(--primary-text-color); }
+  .cat { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; letter-spacing: .03em; color: var(--secondary-text-color); margin: 20px 2px 8px; --mdc-icon-size: 16px; }
+
+  .tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .tile { position: relative; display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 12px; border-radius: 20px; cursor: pointer; outline: none;
+    background: var(--secondary-background-color); transition: transform .1s ease, background .2s ease; }
+  .tile:active { transform: scale(.98); }
+  .tile:focus-visible { box-shadow: 0 0 0 2px var(--primary-color); }
+  .tile.wide { grid-column: 1 / -1; }
+  .tile.dis { opacity: .5; }
+  .tt { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .dic { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; --mdc-icon-size: 20px;
+    background: color-mix(in srgb, var(--primary-text-color) 10%, transparent); color: var(--secondary-text-color); }
+  .tile.on { background: color-mix(in srgb, var(--state-light-active-color, #ffc107) 20%, var(--secondary-background-color)); }
+  .tile.on .dic { background: var(--state-light-active-color, #ffc107); color: #3d2c00; }
+  .ib { width: 28px; height: 28px; padding: 0; border: none; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; --mdc-icon-size: 18px;
+    background: none; color: var(--secondary-text-color); }
+  .dn { font-size: 14px; font-weight: 500; color: var(--primary-text-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ds { font-size: 12px; color: var(--secondary-text-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .alloff { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; margin: 14px 0 0; padding: 12px; border-radius: 16px; border: none; cursor: pointer;
+    font-size: 14px; font-weight: 500; --mdc-icon-size: 18px; background: color-mix(in srgb, var(--primary-color) 16%, transparent); color: var(--primary-color); }
   .kpis { display: flex; gap: 8px; }
-  .kpi { flex: 1; background: var(--secondary-background-color); border-radius: 14px; padding: 10px 12px; display: flex; flex-direction: column; }
-  .kv { font-size: 18px; font-weight: 500; color: var(--primary-text-color); }
+  .kpi { flex: 1; display: flex; flex-direction: column; padding: 12px 14px; border-radius: 18px; background: var(--secondary-background-color); }
+  .kv { font-size: 22px; font-weight: 500; letter-spacing: -.02em; color: var(--primary-text-color); }
   .kl { font-size: 12px; color: var(--secondary-text-color); }
-  .chart { background: var(--secondary-background-color); border-radius: 14px; padding: 10px 12px 6px; margin-bottom: 6px; }
-  .chart.t { color: var(--state-climate-heat-color, #e65100); }
+  .chart { padding: 12px 14px 8px; margin-bottom: 8px; border-radius: 18px; background: var(--secondary-background-color); }
+  .chart.t { color: var(--state-climate-heat-color, #ff9800); }
   .chart.h { color: var(--primary-color); }
-  .ch { display: flex; justify-content: space-between; font-size: 13px; color: var(--primary-text-color); margin-bottom: 4px; }
-  .cr { color: var(--secondary-text-color); font-size: 12px; }
+  .ch { display: flex; justify-content: space-between; font-size: 13px; font-weight: 500; color: var(--primary-text-color); margin-bottom: 6px; }
+  .cr { font-weight: 400; color: var(--secondary-text-color); font-size: 12px; }
   .chart svg { width: 100%; height: 58px; display: block; }
   .axis { display: flex; justify-content: space-between; font-size: 11px; color: var(--secondary-text-color); padding: 0 4px; }
-  .more { display: flex; align-items: center; justify-content: center; gap: 4px; width: 100%; margin: 12px 0 8px; padding: 10px;
-    border-radius: 14px; border: 1px dashed var(--divider-color); background: none; cursor: pointer; font-size: 13px;
-    color: var(--secondary-text-color); --mdc-icon-size: 18px; }
-  .cat { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--secondary-text-color); margin: 16px 0 6px; --mdc-icon-size: 16px; }
-  .dev { display: flex; align-items: center; gap: 12px; padding: 10px 12px; margin-bottom: 6px; border-radius: 14px; cursor: pointer;
-    background: var(--secondary-background-color); }
-  .dev.dis { opacity: .55; }
-  .dic { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex: none;
-    background: var(--card-background-color); color: var(--secondary-text-color); --mdc-icon-size: 20px; }
-  .dev.on .dic { background: color-mix(in srgb, var(--state-light-active-color, #ffc107) 30%, transparent); color: var(--state-light-active-color, #b26a00); }
-  .dt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-  .dn { font-size: 14px; color: var(--primary-text-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .ds { font-size: 12px; color: var(--secondary-text-color); }
-  .tg { position: relative; width: 38px; height: 22px; border-radius: 11px; border: none; cursor: pointer; flex: none;
-    background: var(--disabled-color, #bdbdbd); }
-  .tg i { position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: left .15s; }
-  .tg.on { background: var(--primary-color); }
-  .tg.on i { left: 19px; }
+  .more { display: flex; align-items: center; justify-content: center; gap: 4px; width: 100%; margin: 16px 0 10px; padding: 12px; border-radius: 16px; cursor: pointer; font-size: 13px;
+    border: 1px dashed var(--divider-color); background: none; color: var(--secondary-text-color); --mdc-icon-size: 18px; }
 `;
 
 if (!customElements.get("raum-uebersicht-card")) customElements.define("raum-uebersicht-card", RaumUebersichtCard);
