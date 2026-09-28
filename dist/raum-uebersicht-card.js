@@ -2,7 +2,7 @@
  * Zeigt alle Räume (Areas) als Karten und öffnet pro Raum ein Popup
  * mit allen Geräten, nach Kategorien sortiert. Keine Entity-IDs nötig.
  */
-const RUC_VERSION = "2.1.0";
+const RUC_VERSION = "2.2.0";
 
 const CATEGORIES = [
   { key: "climate", title: "Heizung und Klima", icon: "mdi:radiator", domains: ["climate", "water_heater"] },
@@ -13,9 +13,11 @@ const CATEGORIES = [
   { key: "binary", title: "Fenster und Bewegung", icon: "mdi:door", domains: ["binary_sensor"] },
   { key: "sensor", title: "Raumklima", icon: "mdi:gauge", domains: ["sensor"] },
 ];
-// Was im Popup sofort sichtbar ist, alles andere steckt unter "Weitere Sensoren"
-const ESSENTIAL_SENSOR = ["temperature", "humidity", "carbon_dioxide", "co2", "power"];
-const ESSENTIAL_BINARY = ["window", "door", "opening", "garage_door", "motion", "occupancy", "presence"];
+// Temperatur, Feuchte und Leistung stehen schon auf der Karte bzw. im Popup-Kopf, hier nur echte Zusatzwerte
+const ESSENTIAL_SENSOR = ["carbon_dioxide", "co2", "pm25", "volatile_organic_compounds"];
+const ESSENTIAL_BINARY = ["window", "door", "opening", "garage_door", "motion", "occupancy", "presence", "smoke", "moisture", "gas", "carbon_monoxide"];
+// Technik-Entitäten, die im Popup nie erscheinen (auch nicht bei "Alles aus")
+const HIDE_RE = /(_linkquality|_last_seen|_identify|_restart|_uptime|_ip_address|child_lock|window_detection|valve_detection|window_open|auto_lock|led_indicator|indicator|calibration|frost_protection|_boost)/;
 const TOGGLE_DOMAINS = ["light", "switch", "input_boolean", "fan", "humidifier"];
 const DOMAIN_ICONS = {
   climate: "mdi:thermostat", light: "mdi:lightbulb", switch: "mdi:power-socket-eu", input_boolean: "mdi:toggle-switch",
@@ -50,7 +52,7 @@ class RaumUebersichtCard extends HTMLElement {
   static getStubConfig() { return { type: "custom:raum-uebersicht-card" }; }
 
   setConfig(config) {
-    this._config = { columns: 2, sort: "urgency", ...config };
+    this._config = { columns: 1, sort: "urgency", ...config };
     this._sig = "";
     if (this._hass) this._render();
   }
@@ -267,18 +269,23 @@ class RaumUebersichtCard extends HTMLElement {
         ${clim.state !== "unavailable" ? btn("mdi:power", `data-action="heat" data-mode="on" data-entity="${esc(r.clim)}"`, "Heizung einschalten", "pw") : ""}
       </div>`;
     }
+    const sub = [];
+    if (clim && heating && target != null) sub.push(`<span>Ziel ${num(target)}°</span>`);
+    if (r.power != null && r.power >= 1) sub.push(`<span class="pow"><ha-icon icon="mdi:flash-outline"></ha-icon>${this._fmtW(r.power)}</span>`);
     const ventShow = vent && !["unknown", "unavailable"].includes(vent.state);
+    const hum = hv != null ? `<div class="hum ${hc}"><ha-icon icon="mdi:water-percent"></ha-icon><span class="hbar"><i style="width:${Math.max(4, Math.min(100, Math.round(hv)))}%"></i></span><span class="hp">${Math.round(hv)} %</span></div>` : "";
     return `
       <div class="room ${r.level}" role="button" tabindex="0" data-action="open" data-room="${esc(r.id)}">
         <div class="top">
           <span class="ic"><ha-icon icon="${esc(r.icon)}"></ha-icon></span>
           <span class="name">${esc(r.name)}</span>
-          ${winOpen ? `<span class="wopen"><ha-icon icon="mdi:window-open-variant"></ha-icon>${this._since(r.win)}</span>` : ""}
+          ${winOpen ? `<span class="wopen"><ha-icon icon="mdi:window-open-variant"></ha-icon>Fenster offen, ${this._since(r.win)}</span>` : ""}
+          <ha-icon class="chev" icon="mdi:chevron-right"></ha-icon>
         </div>
-        <div class="tline"><span class="temp">${tt}<small>°C</small></span>${clim && heating && target != null ? `<span class="tgt">Ziel ${num(target)}°</span>` : ""}</div>
-        ${hv != null ? `<div class="hum ${hc}"><span class="hbar"><i style="width:${Math.max(4, Math.min(100, Math.round(hv)))}%"></i></span><span class="hp">${Math.round(hv)} %</span></div>` : ""}
-        ${heat}
-        ${r.power != null && r.power >= 1 ? `<div class="pow"><ha-icon icon="mdi:flash-outline"></ha-icon>${this._fmtW(r.power)}</div>` : ""}
+        <div class="body">
+          <div class="tline"><span class="temp">${tt}<small>°C</small></span>${sub.length ? `<div class="sub">${sub.join("")}</div>` : ""}</div>
+          <div class="side">${hum}${heat}</div>
+        </div>
         ${ventShow ? `<div class="vent ${r.level}"><ha-icon icon="mdi:weather-windy"></ha-icon><span class="vt">${esc(this._fmt(r.vent))}</span>${r.announce ? `<button class="ann" data-action="announce" data-room="${esc(r.id)}" aria-label="Ansagen"><ha-icon icon="${this._flash === r.id ? "mdi:check" : "mdi:bullhorn-outline"}"></ha-icon></button>` : ""}</div>` : ""}
       </div>`;
   }
@@ -331,7 +338,7 @@ class RaumUebersichtCard extends HTMLElement {
     const cfg = this._config.all_off;
     if (cfg === false) return [];
     const doms = Array.isArray(cfg) ? cfg : ["light", "switch"];
-    return r.ids.filter((id) => doms.includes(id.split(".")[0]) && this._hass.states[id].state === "on");
+    return r.ids.filter((id) => this._popupVisible(id) && doms.includes(id.split(".")[0]) && this._hass.states[id].state === "on");
   }
 
   _allOff(roomId) {
@@ -427,6 +434,28 @@ class RaumUebersichtCard extends HTMLElement {
       ${charts ? `<div class="cat"><ha-icon icon="mdi:chart-line"></ha-icon>Verlauf, letzte 7 Tage</div>${charts}<div class="axis"><span>vor 7 Tagen</span><span>jetzt</span></div>` : ""}`;
   }
 
+  _popupVisible(id) {
+    if (HIDE_RE.test(id)) return false;
+    const extra = this._config.hide;
+    return !(Array.isArray(extra) && extra.some((x) => id.includes(String(x))));
+  }
+
+  _live(r) {
+    const h = this._hass;
+    const items = [];
+    const t = this._num(r.temp);
+    if (t != null) items.push(`<div class="kpi"><span class="kv">${t.toFixed(1).replace(".", ",")} °C</span><span class="kl">Temperatur</span></div>`);
+    const hv = this._num(r.hum);
+    if (hv != null) items.push(`<div class="kpi"><span class="kv ${this._humClass(hv)}">${Math.round(hv)} %</span><span class="kl">Luftfeuchte</span></div>`);
+    const c = r.clim && h.states[r.clim];
+    if (c) {
+      const on = c.state !== "off" && c.state !== "unavailable";
+      const tg = c.attributes.temperature;
+      items.push(`<div class="kpi"><span class="kv">${on && tg != null ? `${String(tg).replace(".", ",")} °C` : "Aus"}</span><span class="kl">Heizung</span></div>`);
+    }
+    return items.length ? `<div class="kpis live">${items.join("")}</div>` : "";
+  }
+
   _rank(id, list) {
     const i = list.indexOf(this._dc(id));
     return i < 0 ? 99 : i;
@@ -451,10 +480,10 @@ class RaumUebersichtCard extends HTMLElement {
   _popup(r) {
     const more = [];
     const groups = CATEGORIES.map((c) => {
-      const all = r.ids.filter((id) => c.domains.includes(id.split(".")[0]));
+      const all = r.ids.filter((id) => this._popupVisible(id) && c.domains.includes(id.split(".")[0]));
       const list = c.key === "binary" ? ESSENTIAL_BINARY : ESSENTIAL_SENSOR;
       const items = all.filter((id) => this._isEssential(id)).sort((x, y) => this._byUse(x, y, list));
-      all.filter((id) => !this._isEssential(id)).forEach((id) => more.push(id));
+      if (this._config.more_sensors === true) all.filter((id) => !this._isEssential(id)).forEach((id) => more.push(id));
       return { c, items };
     }).filter((g) => g.items.length);
     more.sort((x, y) => this._name(x).localeCompare(this._name(y), "de"));
@@ -470,6 +499,7 @@ class RaumUebersichtCard extends HTMLElement {
             <span class="ht"><span class="hn">${esc(r.name)}</span><span class="hs">${count} Geräte${more.length ? `, ${more.length} weitere Sensoren` : ""}${r.power != null ? `, ${this._fmtW(r.power)}` : ""}</span></span>
             <button class="x" data-action="close" aria-label="Schließen"><ha-icon icon="mdi:close"></ha-icon></button>
           </div>
+          ${this._live(r)}
           ${offIds.length ? `<button class="alloff" data-action="alloff" data-room="${esc(r.id)}"><ha-icon icon="mdi:power"></ha-icon>${this._flash === "off:" + r.id ? "Ausgeschaltet" : `Alles aus (${offIds.length})`}</button>` : ""}
           ${groups.length ? groups.map((g) => `
             <div class="cat"><ha-icon icon="${g.c.icon}"></ha-icon>${g.c.title}</div>
@@ -493,7 +523,7 @@ class RaumUebersichtCard extends HTMLElement {
       <ha-card>
         ${title ? `<div class="title">${esc(title)}</div>` : ""}
         ${this._config.summary === false ? "" : this._summary(rooms)}
-        <div class="grid" style="--cols:${Number(this._config.columns) || 2}">
+        <div class="grid" style="--cols:${Number(this._config.columns) || 1}">
           ${rooms.length ? rooms.map((r) => this._roomCard(r)).join("") : `<p class="empty">Keine Räume gefunden. Lege in Home Assistant Bereiche an und ordne Geräte zu.</p>`}
         </div>
       </ha-card>
@@ -595,8 +625,8 @@ const RUC_STYLE = `
   .pill.bad { background: color-mix(in srgb, var(--error-color, #db4437) 22%, transparent); color: var(--error-color, #ef5350); border-color: transparent; }
   .pill.heat { background: color-mix(in srgb, var(--state-climate-heat-color, #ff8100) 20%, transparent); color: var(--state-climate-heat-color, #ff9800); border-color: transparent; }
 
-  .room { position: relative; text-align: left; cursor: pointer; outline: none; min-width: 0; display: flex; flex-direction: column; gap: 10px; padding: 14px;
-    border-radius: 24px; border: 1px solid color-mix(in srgb, var(--divider-color) 55%, transparent);
+  .room { position: relative; text-align: left; cursor: pointer; outline: none; min-width: 0; display: flex; flex-direction: column; gap: 14px; padding: 16px;
+    border-radius: 28px; border: 1px solid color-mix(in srgb, var(--divider-color) 55%, transparent);
     background: color-mix(in srgb, var(--ha-card-background, var(--card-background-color)) 80%, transparent);
     backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); transition: transform .12s ease, border-color .2s ease; }
   .room:active { transform: scale(.985); }
@@ -615,12 +645,15 @@ const RUC_STYLE = `
   .wopen { flex: none; display: inline-flex; align-items: center; gap: 3px; font-size: 12px; padding: 3px 8px 3px 5px; border-radius: 999px; --mdc-icon-size: 14px;
     background: color-mix(in srgb, var(--error-color, #db4437) 24%, transparent); color: var(--error-color, #ef5350); }
 
-  .tline { display: flex; align-items: baseline; gap: 8px; }
-  .temp { font-size: 36px; line-height: 1; font-weight: 400; letter-spacing: -.03em; color: var(--primary-text-color); }
-  .temp small { font-size: 15px; font-weight: 400; letter-spacing: 0; margin-left: 2px; color: var(--secondary-text-color); }
-  .tgt { font-size: 13px; color: var(--secondary-text-color); }
+  .body { display: flex; align-items: center; gap: 18px; }
+  .tline { flex: none; display: flex; flex-direction: column; gap: 6px; min-width: 100px; }
+  .temp { font-size: 44px; line-height: 1; font-weight: 300; letter-spacing: -.04em; color: var(--primary-text-color); }
+  .temp small { font-size: 16px; font-weight: 400; letter-spacing: 0; margin-left: 2px; color: var(--secondary-text-color); }
+  .sub { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--secondary-text-color); }
+  .side { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+  .chev { flex: none; color: var(--secondary-text-color); --mdc-icon-size: 20px; opacity: .6; }
 
-  .hum { display: flex; align-items: center; gap: 8px; }
+  .hum { display: flex; align-items: center; gap: 8px; --mdc-icon-size: 18px; color: var(--secondary-text-color); }
   .hbar { flex: 1; height: 6px; border-radius: 3px; overflow: hidden; background: color-mix(in srgb, var(--primary-text-color) 12%, transparent); }
   .hbar i { display: block; height: 100%; border-radius: 3px; background: var(--secondary-text-color); }
   .hum.ok .hbar i { background: var(--success-color, #43a047); }
@@ -640,7 +673,7 @@ const RUC_STYLE = `
   .step:active { transform: scale(.9); }
   .pw.on { background: color-mix(in srgb, var(--state-climate-heat-color, #ff8100) 28%, transparent); color: var(--state-climate-heat-color, #ff9800); }
 
-  .pow { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--secondary-text-color); --mdc-icon-size: 15px; }
+  .pow { display: inline-flex; align-items: center; gap: 3px; --mdc-icon-size: 14px; }
   .vent { margin-top: auto; display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 10px; border-radius: 14px; font-size: 12px; line-height: 1.35; --mdc-icon-size: 16px;
     background: color-mix(in srgb, var(--primary-text-color) 7%, transparent); color: var(--secondary-text-color); }
   .vent.warn { background: color-mix(in srgb, var(--warning-color, #f4b400) 16%, transparent); color: var(--primary-text-color); }
@@ -687,6 +720,10 @@ const RUC_STYLE = `
     font-size: 14px; font-weight: 500; --mdc-icon-size: 18px; background: color-mix(in srgb, var(--primary-color) 16%, transparent); color: var(--primary-color); }
   .kpis { display: flex; gap: 8px; }
   .kpi { flex: 1; display: flex; flex-direction: column; padding: 12px 14px; border-radius: 18px; background: var(--secondary-background-color); }
+  .kv.ok { color: var(--success-color, #66bb6a); }
+  .kv.warn { color: var(--warning-color, #f4b400); }
+  .kv.bad { color: var(--error-color, #ef5350); }
+  .kpis.live { margin: 14px 0 0; }
   .kv { font-size: 22px; font-weight: 500; letter-spacing: -.02em; color: var(--primary-text-color); }
   .kl { font-size: 12px; color: var(--secondary-text-color); }
   .chart { padding: 12px 14px 8px; margin-bottom: 8px; border-radius: 18px; background: var(--secondary-background-color); }

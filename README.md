@@ -19,8 +19,9 @@ Die Karte liest Räume und Geräte selbst aus den **Bereichen (Areas)** von Home
 **Popup pro Raum**
 - Sortiert nach täglicher Nutzung: Heizung, Licht, Rollos, Steckdosen, Medien, Fenster und Bewegung, Raumklima
 - Eingeschaltete Geräte stehen in jeder Kategorie oben
-- Bei den Sensoren sind nur die wichtigen sofort sichtbar: Temperatur, Luftfeuchte, CO₂, Leistung, Fenster, Tür, Bewegung und Anwesenheit
-- Alles andere (Batterie, Helligkeit, Signalstärke und so weiter) steckt hinter "Weitere Sensoren anzeigen"
+- Oben eine Live-Zeile mit Temperatur, Luftfeuchte und Heizung
+- Bei den Sensoren nur das Nötige: Fenster- und Türkontakte, Bewegung, Anwesenheit, Rauch, Wasser sowie CO₂ und Luftqualität. Temperatur und Feuchte stehen schon oben und im Verlauf
+- Technik wird nie angezeigt: Batterie, Spannung, Signalstärke, zweite Temperaturfühler der Heizkörper, Kindersicherung, Fenstererkennung der Thermostate und ähnliches
 - Licht und Schalter direkt umschaltbar, Tipp auf ein Gerät öffnet die Detailansicht
 - Button "Alles aus" schaltet alle eingeschalteten Lichter und Steckdosen des Raums aus
 - Verlauf der letzten 7 Tage für Temperatur und Luftfeuchte
@@ -51,7 +52,10 @@ Damit erscheinen alle Bereiche, die einen Temperatursensor oder ein Thermostat h
 ```yaml
 type: custom:raum-uebersicht-card
 title: Räume
-columns: 2
+columns: 1
+more_sensors: false        # true zeigt übrige Sensoren eingeklappt am Ende des Popups
+hide:                      # Entitäten ausblenden, ein Teil der ID genügt
+  - sensor.beispiel
 sort: urgency               # urgency (Standard), name oder config
 announce:                   # optional: Lüftungsempfehlung per Alexa ansagen
   service: notify.alexa_media
@@ -74,7 +78,9 @@ rooms:
 | Option | Bedeutung |
 | --- | --- |
 | `title` | Überschrift über den Karten |
-| `columns` | Karten pro Zeile, Standard 2 |
+| `columns` | Räume pro Zeile, Standard 1 |
+| `more_sensors` | `true` zeigt die übrigen Sensoren eingeklappt am Ende des Popups, Standard aus |
+| `hide` | Liste von Text-Teilen. Entitäten, deren ID einen davon enthält, verschwinden aus dem Popup und bei "Alles aus" |
 | `rooms` | Auswahl der Räume, Standard alle passenden Bereiche |
 | `summary` | `false` blendet die Zusammenfassung oben aus |
 | `all_off` | Welche Geräte "Alles aus" ausschaltet, Standard `[light, switch]`. `false` blendet den Button aus |
@@ -102,4 +108,4 @@ In `examples/` liegen zwei YAML-Dashboards, die stattdessen Standardkarten sowie
 
 ## Status
 
-Version 2.1.0. Die Logik ist mit simulierten Home-Assistant-Daten geprüft, aber noch nicht in einer echten Installation getestet. Rückmeldungen und Screenshots helfen.
+Version 2.2.0. Die Logik ist mit simulierten Home-Assistant-Daten geprüft, aber noch nicht in einer echten Installation getestet. Rückmeldungen und Screenshots helfen.
