@@ -111,6 +111,19 @@ rooms:
 | `sort` | `urgency` (Dringendes zuerst), `name` (alphabetisch) oder `config` (Reihenfolge aus `rooms`) |
 | `announce` | Alexa-Ansage, auch pro Raum in `rooms` setzbar. Der Button erscheint nur, wenn ein Raum eine Lüftungsempfehlung hat. Gesprochen wird "Raumname. Empfehlung" |
 
+### Better-Thermostat-Karte
+
+Auf der Raumseite (`room:`) wird für die Heizung automatisch die Karte `better-thermostat-normal-climate-card` (oder `better-thermostat-ui-card`) eingebettet, wenn sie installiert ist. Sonst erscheinen die eingebauten Tasten.
+
+```yaml
+thermostat_card: auto            # auto, false oder ein Kartenname
+thermostat_options:              # wird an die Thermostat-Karte durchgereicht
+  low_battery_threshold: 10
+  show_secondary: false
+```
+
+Änderungen an Sensoren aktualisieren nur die betroffenen Stellen, die Karte flackert dabei nicht mehr.
+
 ### Dringlichkeit
 
 Ein offenes Fenster zählt am meisten, danach Feuchte ab 70 %, dann Feuchte ab 60 % und zuletzt eine Lüftungsempfehlung. Roter Rand steht für Fenster offen oder Feuchte über 70 %, gelber Rand für erhöhte Feuchte oder Lüftungsempfehlung.
@@ -151,4 +164,4 @@ In `examples/` liegen zwei YAML-Dashboards, die stattdessen Standardkarten sowie
 
 ## Status
 
-Version 3.0.0 (mit visuellem Editor). Der Editor nutzt die eingebauten Formularfelder von Home Assistant und ist bisher nur mit einer Attrappe getestet. Die Logik ist mit simulierten Home-Assistant-Daten geprüft, aber noch nicht in einer echten Installation getestet. Rückmeldungen und Screenshots helfen.
+Version 3.1.0 (mit visuellem Editor). Der Editor nutzt die eingebauten Formularfelder von Home Assistant und ist bisher nur mit einer Attrappe getestet. Die Logik ist mit simulierten Home-Assistant-Daten geprüft, aber noch nicht in einer echten Installation getestet. Rückmeldungen und Screenshots helfen.

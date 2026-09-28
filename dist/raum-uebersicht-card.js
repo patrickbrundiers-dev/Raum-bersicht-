@@ -2,7 +2,7 @@
  * Zeigt alle Räume (Areas) als Karten und öffnet pro Raum ein Popup
  * mit allen Geräten, nach Kategorien sortiert. Keine Entity-IDs nötig.
  */
-const RUC_VERSION = "3.0.0";
+const RUC_VERSION = "3.1.0";
 
 const CATEGORIES = [
   { key: "climate", title: "Heizung und Klima", icon: "mdi:radiator", domains: ["climate", "water_heater"] },
@@ -352,7 +352,10 @@ class RaumUebersichtCard extends HTMLElement {
       </div>`;
     }
     let heat = "";
-    if (clim && heating && target != null) {
+    const btTag = clim && this._config.room ? this._btTag() : null;
+    if (btTag) {
+      heat = `<div class="btslot" data-keep="1" data-bt="${esc(r.clim)}" data-tag="${esc(btTag)}"></div>`;
+    } else if (clim && heating && target != null) {
       heat = `<div class="hr"><div><div class="lb">Heizung</div><div class="hz">Ziel ${num(Number(target).toFixed(1))} °C</div></div>
         <div class="hbtns">
           ${ob("mdi:minus", `data-action="step" data-dir="-1" data-entity="${esc(r.clim)}"`, "Kälter")}
@@ -810,6 +813,48 @@ class RaumUebersichtCard extends HTMLElement {
       </div>`;
   }
 
+  _btTag() {
+    const c = this._config.thermostat_card;
+    if (c === false) return null;
+    const tags = typeof c === "string" && c !== "auto" ? [c] : ["better-thermostat-normal-climate-card", "better-thermostat-ui-card"];
+    return tags.find((t) => customElements.get(t)) || null;
+  }
+
+  _mountBT() {
+    this.shadowRoot.querySelectorAll(".btslot").forEach((slot) => {
+      const id = slot.dataset.bt;
+      let el = slot.firstElementChild;
+      if (!el || el.localName !== slot.dataset.tag || el._ruc_entity !== id) {
+        slot.textContent = "";
+        el = document.createElement(slot.dataset.tag);
+        el._ruc_entity = id;
+        const opts = { show_secondary: false, show_current_as_primary: false, disable_humidity: true, prevent_interaction_on_scroll: true, low_battery_threshold: 10, ...(this._config.thermostat_options || {}) };
+        try { el.setConfig({ type: "custom:" + slot.dataset.tag, entity: id, ...opts }); } catch (e) { return; }
+        slot.appendChild(el);
+      }
+      el.hass = this._hass;
+    });
+  }
+
+  _morph(from, to) {
+    // gleicht from an to an und lässt unveränderte Knoten stehen (kein Flackern)
+    const fa = from.childNodes, ta = to.childNodes;
+    const n = Math.max(fa.length, ta.length);
+    for (let i = 0; i < n; i++) {
+      const a = fa[i], b = ta[i];
+      if (!b) { from.removeChild(from.lastChild); continue; }
+      if (!a) { from.appendChild(b.cloneNode(true)); continue; }
+      if (a.nodeType !== b.nodeType || a.nodeName !== b.nodeName) { from.replaceChild(b.cloneNode(true), a); continue; }
+      if (a.nodeType !== 1) { if (a.nodeValue !== b.nodeValue) a.nodeValue = b.nodeValue; continue; }
+      if (a.localName === "style") { if (a.textContent !== b.textContent) a.textContent = b.textContent; continue; }
+      for (const at of [...a.attributes]) if (!b.hasAttribute(at.name)) a.removeAttribute(at.name);
+      for (const at of b.attributes) if (a.getAttribute(at.name) !== at.value) a.setAttribute(at.name, at.value);
+      if (a.localName === "input") { if (a.value !== b.getAttribute("value") && b.hasAttribute("value")) a.value = b.getAttribute("value"); continue; }
+      if (a.hasAttribute("data-keep") && a.dataset.bt === b.dataset.bt) continue;
+      this._morph(a, b);
+    }
+  }
+
   _render() {
     if (!this._hass || !this._config || this._drag) return;
     const rooms = this._rooms();
@@ -837,7 +882,11 @@ class RaumUebersichtCard extends HTMLElement {
     const sheet = this.shadowRoot.querySelector(".sheet");
     if (sheet) this._sheetScroll = sheet.scrollTop;
     this._sig = html;
-    this.shadowRoot.innerHTML = html;
+    const tpl = document.createElement("template");
+    tpl.innerHTML = html;
+    if (!this.shadowRoot.firstChild) this.shadowRoot.appendChild(tpl.content.cloneNode(true));
+    else this._morph(this.shadowRoot, tpl.content);
+    this._mountBT();
     const ns = this.shadowRoot.querySelector(".sheet");
     if (ns) ns.scrollTop = this._sheetScroll;
   }
@@ -994,6 +1043,7 @@ const RUC_STYLE = `
   .hz { font-size: 21px; font-weight: 500; letter-spacing: -.01em; color: var(--primary-text-color); }
   .hz.off { color: var(--secondary-text-color); }
   .hbtns { display: flex; gap: 8px; }
+  .btslot { display: block; border-radius: 22px; overflow: hidden; margin-top: 4px; }
   .ob { min-width: 46px; height: 46px; padding: 0 16px; border-radius: 14px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-size: 16px;
     border: 1px solid var(--divider-color); background: none; color: var(--primary-text-color); --mdc-icon-size: 22px; transition: transform .1s ease, background .15s ease; }
   .ob:active { transform: scale(.95); background: color-mix(in srgb, var(--primary-text-color) 10%, transparent); }
