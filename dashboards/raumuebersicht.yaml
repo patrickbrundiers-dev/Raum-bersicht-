@@ -1,0 +1,267 @@
+title: Räume
+path: raeume
+type: sections
+max_columns: 3
+badges:
+  - type: entity
+    entity: weather.forecast_home
+    name: Wetter
+  - type: entity
+    entity: sensor.aussentemperatur
+    name: Draußen
+    color: orange
+sections:
+  - type: grid
+    column_span: 3
+    cards:
+      - type: heading
+        heading: Raumübersicht
+        heading_style: title
+        icon: mdi:home-thermometer-outline
+      - type: custom:smart-ventilation-card
+        entity: sensor.luften_ubersicht_dringendster_raum
+
+  - type: grid
+    cards:
+      - type: heading
+        heading: Schlafzimmer
+        tap_action:
+          action: navigate
+          navigation_path: "#schlafzimmer"
+        icon: mdi:bed
+      - type: tile
+        entity: binary_sensor.schlafzimmer_fenster
+        name: Fenster
+        vertical: false
+        state_content:
+          - state
+          - last_changed
+      - type: tile
+        entity: sensor.schlafzimmer_temperatur
+        name: Temperatur
+        icon: mdi:thermometer
+        color: orange
+        vertical: false
+        features:
+          - type: trend-graph
+            hours_to_show: 24
+      - type: gauge
+        entity: sensor.schlafzimmer_luftfeuchtigkeit
+        name: Luftfeuchte
+        min: 20
+        max: 80
+        needle: true
+        segments:
+          - from: 20
+            color: "#f4b400"
+          - from: 40
+            color: "#43a047"
+          - from: 60
+            color: "#f4b400"
+          - from: 70
+            color: "#e53935"
+      - type: tile
+        entity: climate.schlafzimmer
+        name: Heizung
+        features:
+          - type: target-temperature
+          - type: climate-hvac-modes
+            hvac_modes: [heat, "off"]
+      - type: custom:smart-ventilation-card
+        entity: sensor.schlafzimmer_empfehlung
+
+  - type: grid
+    cards:
+      - type: heading
+        heading: Wohnzimmer
+        tap_action:
+          action: navigate
+          navigation_path: "#wohnzimmer"
+        icon: mdi:sofa
+      - type: tile
+        entity: binary_sensor.wohnzimmer_fenster
+        name: Fenster
+        vertical: false
+        state_content:
+          - state
+          - last_changed
+      - type: tile
+        entity: sensor.wohnzimmer_temperatur
+        name: Temperatur
+        icon: mdi:thermometer
+        color: orange
+        vertical: false
+        features:
+          - type: trend-graph
+            hours_to_show: 24
+      - type: gauge
+        entity: sensor.wohnzimmer_luftfeuchtigkeit
+        name: Luftfeuchte
+        min: 20
+        max: 80
+        needle: true
+        segments:
+          - from: 20
+            color: "#f4b400"
+          - from: 40
+            color: "#43a047"
+          - from: 60
+            color: "#f4b400"
+          - from: 70
+            color: "#e53935"
+      - type: tile
+        entity: climate.wohnzimmer
+        name: Heizung
+        features:
+          - type: target-temperature
+          - type: climate-hvac-modes
+            hvac_modes: [heat, "off"]
+      - type: custom:smart-ventilation-card
+        entity: sensor.wohnzimmer_empfehlung
+
+  - type: grid
+    cards:
+      - type: heading
+        heading: Bad
+        tap_action:
+          action: navigate
+          navigation_path: "#bad"
+        icon: mdi:shower
+      - type: tile
+        entity: binary_sensor.bad_fenster
+        name: Fenster
+        vertical: false
+        state_content:
+          - state
+          - last_changed
+      - type: tile
+        entity: sensor.bad_temperatur
+        name: Temperatur
+        icon: mdi:thermometer
+        color: orange
+        vertical: false
+        features:
+          - type: trend-graph
+            hours_to_show: 24
+      - type: gauge
+        entity: sensor.bad_luftfeuchtigkeit
+        name: Luftfeuchte
+        min: 20
+        max: 80
+        needle: true
+        segments:
+          - from: 20
+            color: "#f4b400"
+          - from: 40
+            color: "#43a047"
+          - from: 60
+            color: "#f4b400"
+          - from: 70
+            color: "#e53935"
+      - type: tile
+        entity: climate.bad
+        name: Heizung
+        features:
+          - type: target-temperature
+          - type: climate-hvac-modes
+            hvac_modes: [heat, "off"]
+      - type: custom:smart-ventilation-card
+        entity: sensor.bad_empfehlung
+
+  - type: grid
+    cards:
+      - type: heading
+        heading: Nele
+        tap_action:
+          action: navigate
+          navigation_path: "#nele"
+        icon: mdi:teddy-bear
+      - type: tile
+        entity: binary_sensor.nele_fenster
+        name: Fenster
+        vertical: false
+        state_content:
+          - state
+          - last_changed
+      - type: tile
+        entity: sensor.nele_temperatur
+        name: Temperatur
+        icon: mdi:thermometer
+        color: orange
+        vertical: false
+        features:
+          - type: trend-graph
+            hours_to_show: 24
+      - type: gauge
+        entity: sensor.nele_luftfeuchtigkeit
+        name: Luftfeuchte
+        min: 20
+        max: 80
+        needle: true
+        segments:
+          - from: 20
+            color: "#f4b400"
+          - from: 40
+            color: "#43a047"
+          - from: 60
+            color: "#f4b400"
+          - from: 70
+            color: "#e53935"
+      - type: tile
+        entity: climate.nele
+        name: Heizung
+        features:
+          - type: target-temperature
+          - type: climate-hvac-modes
+            hvac_modes: [heat, "off"]
+      - type: custom:smart-ventilation-card
+        entity: sensor.nele_empfehlung
+
+  - type: grid
+    cards:
+      - type: heading
+        heading: Lisa
+        tap_action:
+          action: navigate
+          navigation_path: "#lisa"
+        icon: mdi:flower
+      - type: tile
+        entity: binary_sensor.lisa_fenster
+        name: Fenster
+        vertical: false
+        state_content:
+          - state
+          - last_changed
+      - type: tile
+        entity: sensor.lisa_temperatur
+        name: Temperatur
+        icon: mdi:thermometer
+        color: orange
+        vertical: false
+        features:
+          - type: trend-graph
+            hours_to_show: 24
+      - type: gauge
+        entity: sensor.lisa_luftfeuchtigkeit
+        name: Luftfeuchte
+        min: 20
+        max: 80
+        needle: true
+        segments:
+          - from: 20
+            color: "#f4b400"
+          - from: 40
+            color: "#43a047"
+          - from: 60
+            color: "#f4b400"
+          - from: 70
+            color: "#e53935"
+      - type: tile
+        entity: climate.lisa
+        name: Heizung
+        features:
+          - type: target-temperature
+          - type: climate-hvac-modes
+            hvac_modes: [heat, "off"]
+      - type: custom:smart-ventilation-card
+        entity: sensor.lisa_empfehlung

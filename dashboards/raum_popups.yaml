@@ -1,0 +1,683 @@
+# In die Ansicht (z. B. unter den Sections) einfügen. Benötigt HACS: Bubble Card und auto-entities.
+# Geräte werden automatisch aus dem Bereich (Area) des Raums geholt, keine Entity-IDs nötig.
+
+- # ---------- Popup Schlafzimmer ----------
+  type: vertical-stack
+  cards:
+    - type: custom:bubble-card
+      card_type: pop-up
+      hash: "#schlafzimmer"
+      name: Schlafzimmer
+      icon: mdi:bed
+      button_type: name
+      show_header: true
+    - type: custom:auto-entities
+      show_empty: false
+      card:
+        type: entities
+        title: Heizung und Klima
+        state_color: true
+      filter:
+        include:
+          - domain: climate
+            area: Schlafzimmer
+        exclude:
+          - entity_id: "*_linkquality"
+          - entity_id: "*_update"
+          - entity_id: "*_identify"
+          - entity_category: diagnostic
+          - entity_category: config
+      sort:
+        method: friendly_name
+    - type: custom:auto-entities
+      show_empty: false
+      card:
+        type: entities
+        title: Licht
+        state_color: true
+      filter:
+        include:
+          - domain: light
+            area: Schlafzimmer
+        exclude:
+          - entity_id: "*_linkquality"
+          - entity_id: "*_update"
+          - entity_id: "*_identify"
+          - entity_category: diagnostic
+          - entity_category: config
+      sort:
+        method: friendly_name
+    - type: custom:auto-entities
+      show_empty: false
+      card:
+        type: entities
+        title: Steckdosen und Schalter
+        state_color: true
+      filter:
+        include:
+          - domain: switch
+            area: Schlafzimmer
+        exclude:
+          - entity_id: "*_linkquality"
+          - entity_id: "*_update"
+          - entity_id: "*_identify"
+          - entity_category: diagnostic
+          - entity_category: config
+      sort:
+        method: friendly_name
+    - type: custom:auto-entities
+      show_empty: false
+      card:
+        type: entities
+        title: Rollos und Fenster
+        state_color: true
+      filter:
+        include:
+          - domain: cover
+            area: Schlafzimmer
+        exclude:
+          - entity_id: "*_linkquality"
+          - entity_id: "*_update"
+          - entity_id: "*_identify"
+          - entity_category: diagnostic
+          - entity_category: config
+      sort:
+        method: friendly_name
+    - type: custom:auto-entities
+      show_empty: false
+      card:
+        type: entities
+        title: Medien
+        state_color: true
+      filter:
+        include:
+          - domain: media_player
+            area: Schlafzimmer
+        exclude:
+          - entity_id: "*_linkquality"
+          - entity_id: "*_update"
+          - entity_id: "*_identify"
+          - entity_category: diagnostic
+          - entity_category: config
+      sort:
+        method: friendly_name
+    - type: custom:auto-entities
+      show_empty: false
+      card:
+        type: entities
+        title: Sensoren
+        state_color: true
+      filter:
+        include:
+          - domain: sensor
+            area: Schlafzimmer
+        exclude:
+          - entity_id: "*_linkquality"
+          - entity_id: "*_update"
+          - entity_id: "*_identify"
+          - entity_category: diagnostic
+          - entity_category: config
+      sort:
+        method: friendly_name
+    - type: custom:auto-entities
+      show_empty: false
+      card:
+        type: entities
+        title: Kontakte und Bewegung
+        state_color: true
+      filter:
+        include:
+          - domain: binary_sensor
+            area: Schlafzimmer
+        exclude:
+          - entity_id: "*_linkquality"
+          - entity_id: "*_update"
+          - entity_id: "*_identify"
+          - entity_category: diagnostic
+          - entity_category: config
+      sort:
+        method: friendly_name
+- # ---------- Popup Wohnzimmer ----------
+  type: vertical-stack
+  cards:
+    - type: custom:bubble-card
+      card_type: pop-up
+      hash: "#wohnzimmer"
+      name: Wohnzimmer
+      icon: mdi:sofa
+      button_type: name
+      show_header: true
+    - type: custom:auto-entities
+      show_empty: false
+      card:
+        type: entities
+        title: Heizung und Klima
+        state_color: true
+      filter:
+        include:
+          - domain: climate
+            area: Wohnzimmer
+        exclude:
+          - entity_id: "*_linkquality"
+          - entity_id: "*_update"
+          - entity_id: "*_identify"
+          - entity_category: diagnostic
+          - entity_category: config
+      sort:
+        method: friendly_name
+    - type: custom:auto-entities
+      show_empty: false
+      card:
+        type: entities
+        title: Licht
+        state_color: true
+      filter:
+        include:
+          - domain: light
+            area: Wohnzimmer
+        exclude:
+          - entity_id: "*_linkquality"
+          - entity_id: "*_update"
+          - entity_id: "*_identify"
+          - entity_category: diagnostic
+          - entity_category: config
+      sort:
+        method: friendly_name
+    - type: custom:auto-entities
+      show_empty: false
+      card:
+        type: entities
+        title: Steckdosen und Schalter
+        state_color: true
+      filter:
+        include:
+          - domain: switch
+            area: Wohnzimmer
+        exclude:
+          - entity_id: "*_linkquality"
+          - entity_id: "*_update"
+          - entity_id: "*_identify"
+          - entity_category: diagnostic
+          - entity_category: config
+      sort:
+        method: friendly_name
+    - type: custom:auto-entities
+      show_empty: false
+      card:
+        type: entities
+        title: Rollos und Fenster
+        state_color: true
+      filter:
+        include:
+          - domain: cover
+            area: Wohnzimmer
+        exclude:
+          - entity_id: "*_linkquality"
+          - entity_id: "*_update"
+          - entity_id: "*_identify"
+          - entity_category: diagnostic
+          - entity_category: config
+      sort:
+        method: friendly_name
+    - type: custom:auto-entities
+      show_empty: false
+      card:
+        type: entities
+        title: Medien
+        state_color: true
+      filter:
+        include:
+          - domain: media_player
+            area: Wohnzimmer
+        exclude:
+          - entity_id: "*_linkquality"
+          - entity_id: "*_update"
+          - entity_id: "*_identify"
+          - entity_category: diagnostic
+          - entity_category: config
+      sort:
+        method: friendly_name
+    - type: custom:auto-entities
+      show_empty: false
+      card:
+        type: entities
+        title: Sensoren
+        state_color: true
+      filter:
+        include:
+          - domain: sensor
+            area: Wohnzimmer
+        exclude:
+          - entity_id: "*_linkquality"
+          - entity_id: "*_update"
+          - entity_id: "*_identify"
+          - entity_category: diagnostic
+          - entity_category: config
+      sort:
+        method: friendly_name
+    - type: custom:auto-entities
+      show_empty: false
+      card:
+        type: entities
+        title: Kontakte und Bewegung
+        state_color: true
+      filter:
+        include:
+          - domain: binary_sensor
+            area: Wohnzimmer
+        exclude:
+          - entity_id: "*_linkquality"
+          - entity_id: "*_update"
+          - entity_id: "*_identify"
+          - entity_category: diagnostic
+          - entity_category: config
+      sort:
+        method: friendly_name
+- # ---------- Popup Bad ----------
+  type: vertical-stack
+  cards:
+    - type: custom:bubble-card
+      card_type: pop-up
+      hash: "#bad"
+      name: Bad
+      icon: mdi:shower
+      button_type: name
+      show_header: true
+    - type: custom:auto-entities
+      show_empty: false
+      card:
+        type: entities
+        title: Heizung und Klima
+        state_color: true
+      filter:
+        include:
+          - domain: climate
+            area: Bad
+        exclude:
+          - entity_id: "*_linkquality"
+          - entity_id: "*_update"
+          - entity_id: "*_identify"
+          - entity_category: diagnostic
+          - entity_category: config
+      sort:
+        method: friendly_name
+    - type: custom:auto-entities
+      show_empty: false
+      card:
+        type: entities
+        title: Licht
+        state_color: true
+      filter:
+        include:
+          - domain: light
+            area: Bad
+        exclude:
+          - entity_id: "*_linkquality"
+          - entity_id: "*_update"
+          - entity_id: "*_identify"
+          - entity_category: diagnostic
+          - entity_category: config
+      sort:
+        method: friendly_name
+    - type: custom:auto-entities
+      show_empty: false
+      card:
+        type: entities
+        title: Steckdosen und Schalter
+        state_color: true
+      filter:
+        include:
+          - domain: switch
+            area: Bad
+        exclude:
+          - entity_id: "*_linkquality"
+          - entity_id: "*_update"
+          - entity_id: "*_identify"
+          - entity_category: diagnostic
+          - entity_category: config
+      sort:
+        method: friendly_name
+    - type: custom:auto-entities
+      show_empty: false
+      card:
+        type: entities
+        title: Rollos und Fenster
+        state_color: true
+      filter:
+        include:
+          - domain: cover
+            area: Bad
+        exclude:
+          - entity_id: "*_linkquality"
+          - entity_id: "*_update"
+          - entity_id: "*_identify"
+          - entity_category: diagnostic
+          - entity_category: config
+      sort:
+        method: friendly_name
+    - type: custom:auto-entities
+      show_empty: false
+      card:
+        type: entities
+        title: Medien
+        state_color: true
+      filter:
+        include:
+          - domain: media_player
+            area: Bad
+        exclude:
+          - entity_id: "*_linkquality"
+          - entity_id: "*_update"
+          - entity_id: "*_identify"
+          - entity_category: diagnostic
+          - entity_category: config
+      sort:
+        method: friendly_name
+    - type: custom:auto-entities
+      show_empty: false
+      card:
+        type: entities
+        title: Sensoren
+        state_color: true
+      filter:
+        include:
+          - domain: sensor
+            area: Bad
+        exclude:
+          - entity_id: "*_linkquality"
+          - entity_id: "*_update"
+          - entity_id: "*_identify"
+          - entity_category: diagnostic
+          - entity_category: config
+      sort:
+        method: friendly_name
+    - type: custom:auto-entities
+      show_empty: false
+      card:
+        type: entities
+        title: Kontakte und Bewegung
+        state_color: true
+      filter:
+        include:
+          - domain: binary_sensor
+            area: Bad
+        exclude:
+          - entity_id: "*_linkquality"
+          - entity_id: "*_update"
+          - entity_id: "*_identify"
+          - entity_category: diagnostic
+          - entity_category: config
+      sort:
+        method: friendly_name
+- # ---------- Popup Nele ----------
+  type: vertical-stack
+  cards:
+    - type: custom:bubble-card
+      card_type: pop-up
+      hash: "#nele"
+      name: Nele
+      icon: mdi:teddy-bear
+      button_type: name
+      show_header: true
+    - type: custom:auto-entities
+      show_empty: false
+      card:
+        type: entities
+        title: Heizung und Klima
+        state_color: true
+      filter:
+        include:
+          - domain: climate
+            area: Nele
+        exclude:
+          - entity_id: "*_linkquality"
+          - entity_id: "*_update"
+          - entity_id: "*_identify"
+          - entity_category: diagnostic
+          - entity_category: config
+      sort:
+        method: friendly_name
+    - type: custom:auto-entities
+      show_empty: false
+      card:
+        type: entities
+        title: Licht
+        state_color: true
+      filter:
+        include:
+          - domain: light
+            area: Nele
+        exclude:
+          - entity_id: "*_linkquality"
+          - entity_id: "*_update"
+          - entity_id: "*_identify"
+          - entity_category: diagnostic
+          - entity_category: config
+      sort:
+        method: friendly_name
+    - type: custom:auto-entities
+      show_empty: false
+      card:
+        type: entities
+        title: Steckdosen und Schalter
+        state_color: true
+      filter:
+        include:
+          - domain: switch
+            area: Nele
+        exclude:
+          - entity_id: "*_linkquality"
+          - entity_id: "*_update"
+          - entity_id: "*_identify"
+          - entity_category: diagnostic
+          - entity_category: config
+      sort:
+        method: friendly_name
+    - type: custom:auto-entities
+      show_empty: false
+      card:
+        type: entities
+        title: Rollos und Fenster
+        state_color: true
+      filter:
+        include:
+          - domain: cover
+            area: Nele
+        exclude:
+          - entity_id: "*_linkquality"
+          - entity_id: "*_update"
+          - entity_id: "*_identify"
+          - entity_category: diagnostic
+          - entity_category: config
+      sort:
+        method: friendly_name
+    - type: custom:auto-entities
+      show_empty: false
+      card:
+        type: entities
+        title: Medien
+        state_color: true
+      filter:
+        include:
+          - domain: media_player
+            area: Nele
+        exclude:
+          - entity_id: "*_linkquality"
+          - entity_id: "*_update"
+          - entity_id: "*_identify"
+          - entity_category: diagnostic
+          - entity_category: config
+      sort:
+        method: friendly_name
+    - type: custom:auto-entities
+      show_empty: false
+      card:
+        type: entities
+        title: Sensoren
+        state_color: true
+      filter:
+        include:
+          - domain: sensor
+            area: Nele
+        exclude:
+          - entity_id: "*_linkquality"
+          - entity_id: "*_update"
+          - entity_id: "*_identify"
+          - entity_category: diagnostic
+          - entity_category: config
+      sort:
+        method: friendly_name
+    - type: custom:auto-entities
+      show_empty: false
+      card:
+        type: entities
+        title: Kontakte und Bewegung
+        state_color: true
+      filter:
+        include:
+          - domain: binary_sensor
+            area: Nele
+        exclude:
+          - entity_id: "*_linkquality"
+          - entity_id: "*_update"
+          - entity_id: "*_identify"
+          - entity_category: diagnostic
+          - entity_category: config
+      sort:
+        method: friendly_name
+- # ---------- Popup Lisa ----------
+  type: vertical-stack
+  cards:
+    - type: custom:bubble-card
+      card_type: pop-up
+      hash: "#lisa"
+      name: Lisa
+      icon: mdi:flower
+      button_type: name
+      show_header: true
+    - type: custom:auto-entities
+      show_empty: false
+      card:
+        type: entities
+        title: Heizung und Klima
+        state_color: true
+      filter:
+        include:
+          - domain: climate
+            area: Lisa
+        exclude:
+          - entity_id: "*_linkquality"
+          - entity_id: "*_update"
+          - entity_id: "*_identify"
+          - entity_category: diagnostic
+          - entity_category: config
+      sort:
+        method: friendly_name
+    - type: custom:auto-entities
+      show_empty: false
+      card:
+        type: entities
+        title: Licht
+        state_color: true
+      filter:
+        include:
+          - domain: light
+            area: Lisa
+        exclude:
+          - entity_id: "*_linkquality"
+          - entity_id: "*_update"
+          - entity_id: "*_identify"
+          - entity_category: diagnostic
+          - entity_category: config
+      sort:
+        method: friendly_name
+    - type: custom:auto-entities
+      show_empty: false
+      card:
+        type: entities
+        title: Steckdosen und Schalter
+        state_color: true
+      filter:
+        include:
+          - domain: switch
+            area: Lisa
+        exclude:
+          - entity_id: "*_linkquality"
+          - entity_id: "*_update"
+          - entity_id: "*_identify"
+          - entity_category: diagnostic
+          - entity_category: config
+      sort:
+        method: friendly_name
+    - type: custom:auto-entities
+      show_empty: false
+      card:
+        type: entities
+        title: Rollos und Fenster
+        state_color: true
+      filter:
+        include:
+          - domain: cover
+            area: Lisa
+        exclude:
+          - entity_id: "*_linkquality"
+          - entity_id: "*_update"
+          - entity_id: "*_identify"
+          - entity_category: diagnostic
+          - entity_category: config
+      sort:
+        method: friendly_name
+    - type: custom:auto-entities
+      show_empty: false
+      card:
+        type: entities
+        title: Medien
+        state_color: true
+      filter:
+        include:
+          - domain: media_player
+            area: Lisa
+        exclude:
+          - entity_id: "*_linkquality"
+          - entity_id: "*_update"
+          - entity_id: "*_identify"
+          - entity_category: diagnostic
+          - entity_category: config
+      sort:
+        method: friendly_name
+    - type: custom:auto-entities
+      show_empty: false
+      card:
+        type: entities
+        title: Sensoren
+        state_color: true
+      filter:
+        include:
+          - domain: sensor
+            area: Lisa
+        exclude:
+          - entity_id: "*_linkquality"
+          - entity_id: "*_update"
+          - entity_id: "*_identify"
+          - entity_category: diagnostic
+          - entity_category: config
+      sort:
+        method: friendly_name
+    - type: custom:auto-entities
+      show_empty: false
+      card:
+        type: entities
+        title: Kontakte und Bewegung
+        state_color: true
+      filter:
+        include:
+          - domain: binary_sensor
+            area: Lisa
+        exclude:
+          - entity_id: "*_linkquality"
+          - entity_id: "*_update"
+          - entity_id: "*_identify"
+          - entity_category: diagnostic
+          - entity_category: config
+      sort:
+        method: friendly_name
