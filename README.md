@@ -104,7 +104,13 @@ Ein offenes Fenster zählt am meisten, danach Feuchte ab 70 %, dann Feuchte ab 6
 
 ### Raumseite statt Übersicht
 
-Für die Unterseite eines einzelnen Raums zeigt `room:` die Raumkarte und darunter alle Geräte, Fenster, Verlauf und Energie ohne Popup:
+Für die Unterseite eines einzelnen Raums zeigt `room:` eine komplette Raumseite ohne Popup. Sie ersetzt Klima-, Lampen-, Fenster- und Multimedia-Karten:
+
+- **Klima:** die Raumkarte mit Temperatur, Verlauf, Feuchte, Heizung und Lüftungsempfehlung
+- **Lampen:** "Alles aus" und "Licht an", jedes Licht mit Helligkeitsregler
+- **Türen und Fenster:** offene zuerst, mit "Zuletzt geändert". Eine Fenstergruppe wird in ihre einzelnen Fenster aufgelöst
+- **Multimedia:** Player mit Cover, Titel, Play/Pause, Zurück/Weiter, Stumm, Ein/Aus und Lautstärke, je nachdem, was das Gerät kann
+- **Weitere Geräte, Energie und 7-Tage-Verlauf**
 
 ```yaml
 type: custom:raum-uebersicht-card
@@ -132,4 +138,4 @@ In `examples/` liegen zwei YAML-Dashboards, die stattdessen Standardkarten sowie
 
 ## Status
 
-Version 2.5.0. Die Logik ist mit simulierten Home-Assistant-Daten geprüft, aber noch nicht in einer echten Installation getestet. Rückmeldungen und Screenshots helfen.
+Version 2.6.0. Die Logik ist mit simulierten Home-Assistant-Daten geprüft, aber noch nicht in einer echten Installation getestet. Rückmeldungen und Screenshots helfen.

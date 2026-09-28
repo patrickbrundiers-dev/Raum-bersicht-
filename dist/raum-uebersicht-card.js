@@ -2,7 +2,7 @@
  * Zeigt alle Räume (Areas) als Karten und öffnet pro Raum ein Popup
  * mit allen Geräten, nach Kategorien sortiert. Keine Entity-IDs nötig.
  */
-const RUC_VERSION = "2.5.0";
+const RUC_VERSION = "2.6.0";
 
 const CATEGORIES = [
   { key: "climate", title: "Heizung und Klima", icon: "mdi:radiator", domains: ["climate", "water_heater"] },
@@ -64,6 +64,24 @@ class RaumUebersichtCard extends HTMLElement {
     this._more = {};
     this._hist = {};
     this.shadowRoot.addEventListener("click", (e) => this._onClick(e));
+    const lock = () => {
+      this._drag = true;
+      clearTimeout(this._dt);
+      this._dt = setTimeout(() => { this._drag = false; this._sig = ""; this._render(); }, 1500);
+    };
+    this.shadowRoot.addEventListener("pointerdown", (e) => { if (e.target.matches && e.target.matches('input[type="range"]')) lock(); });
+    this.shadowRoot.addEventListener("input", (e) => { if (e.target.matches && e.target.matches('input[type="range"]')) lock(); });
+    this.shadowRoot.addEventListener("change", (e) => {
+      const t = e.target;
+      if (!t.matches || !t.matches('input[type="range"]')) return;
+      const v = Number(t.value);
+      if (t.classList.contains("bri")) this._hass.callService("light", "turn_on", { entity_id: t.dataset.entity, brightness_pct: v });
+      else if (t.classList.contains("vol")) this._hass.callService("media_player", "volume_set", { entity_id: t.dataset.entity, volume_level: v / 100 });
+      clearTimeout(this._dt);
+      this._drag = false;
+      this._sig = "";
+      setTimeout(() => this._render(), 400);
+    });
     this.shadowRoot.addEventListener("keydown", (e) => {
       if ((e.key === "Enter" || e.key === " ") && e.target && e.target.getAttribute && e.target.getAttribute("role") === "button") {
         e.preventDefault();
@@ -374,6 +392,7 @@ class RaumUebersichtCard extends HTMLElement {
       <div class="tile ${active ? "on" : ""} ${flag} ${dis ? "dis" : ""} ${domain === "climate" ? "wide" : ""}" role="button" tabindex="0" data-action="${act}" data-entity="${esc(id)}">
         <span class="tt"><span class="dic"><ha-icon icon="${esc(this._icon(id))}"></ha-icon></span>${act === "toggle" ? `<button class="ib" data-action="info" data-entity="${esc(id)}" aria-label="Details"><ha-icon icon="mdi:dots-horizontal"></ha-icon></button>` : ""}</span>
         <span class="dn">${esc(this._name(id))}</span>
+        ${domain === "light" && st.state === "on" && st.attributes.brightness != null ? `<input class="bri" type="range" min="1" max="100" value="${Math.round((st.attributes.brightness / 255) * 100)}" data-entity="${esc(id)}" aria-label="Helligkeit">` : ""}
         <span class="ds">${esc(this._fmt(id))}${domain === "binary_sensor" && ["on", "off"].includes(st.state) && (dcl || WINDOW_NAME_RE.test(id)) && !["motion", "occupancy", "presence"].includes(dcl) ? `, seit ${this._since(id)}` : ""}</span>
       </div>`;
   }
@@ -632,6 +651,108 @@ class RaumUebersichtCard extends HTMLElement {
     return act(a) - act(b) || this._name(a).localeCompare(this._name(b), "de");
   }
 
+  _groups(r) {
+    return CATEGORIES.map((c) => {
+      const all = r.ids.filter((id) => this._popupVisible(id) && c.domains.includes(id.split(".")[0]));
+      const list = c.key === "binary" ? ESSENTIAL_BINARY : ESSENTIAL_SENSOR;
+      const items = all.filter((id) => this._isEssential(id)).sort((x, y) => this._byUse(x, y, list));
+      return { c, items };
+    }).filter((g) => g.items.length);
+  }
+
+  _contacts(r) {
+    const h = this._hass;
+    const CLS = ["window", "door", "opening", "garage_door"];
+    const out = [];
+    const add = (id) => { if (id && h.states[id] && !out.includes(id)) out.push(id); };
+    const grp = r.win && h.states[r.win];
+    const members = grp && Array.isArray(grp.attributes.entity_id) ? grp.attributes.entity_id : [];
+    members.forEach(add);
+    r.ids.filter((id) => id.startsWith("binary_sensor.") && !HIDE_RE.test(id) && id !== r.win
+      && (CLS.includes(this._dc(id)) || (!this._dc(id) && WINDOW_NAME_RE.test(`${id} ${this._name(id)}`)))).forEach(add);
+    if (!members.length) add(r.win);
+    return out.sort((a, b) => (h.states[b].state === "on") - (h.states[a].state === "on") || this._name(a).localeCompare(this._name(b), "de"));
+  }
+
+  _stamp(id) {
+    const d = new Date(this._hass.states[id].last_changed);
+    const z = (n) => String(n).padStart(2, "0");
+    return `${z(d.getDate())}.${z(d.getMonth() + 1)}.${d.getFullYear()} ${z(d.getHours())}:${z(d.getMinutes())}`;
+  }
+
+  _contactRow(id) {
+    const st = this._hass.states[id];
+    const open = st.state === "on";
+    const known = ["on", "off"].includes(st.state);
+    const dc = this._dc(id);
+    const icon = dc === "window" || /fenster|window/i.test(id) ? (open ? "mdi:window-open-variant" : "mdi:window-closed-variant") : (open ? "mdi:door-open" : "mdi:door-closed");
+    return `
+      <div class="wrow ${open ? "open" : known ? "closed" : ""}" role="button" tabindex="0" data-action="info" data-entity="${esc(id)}">
+        <span class="wic"><ha-icon icon="${icon}"></ha-icon></span>
+        <span class="wt"><span class="wn">${esc(this._name(id))}</span><span class="ws">Zuletzt geändert: ${this._stamp(id)}</span></span>
+        <span class="wst">${open ? "Offen" : known ? "Geschlossen" : "Unbekannt"}</span>
+      </div>`;
+  }
+
+  _mediaCard(id) {
+    const st = this._hass.states[id];
+    const a = st.attributes;
+    const off = ["off", "unknown"].includes(st.state);
+    const playing = st.state === "playing";
+    const f = Number(a.supported_features) || 0;
+    const can = (m) => (f & m) !== 0;
+    const pic = a.entity_picture_local || a.entity_picture;
+    const title = a.media_title || (off ? "Aus" : this._fmt(id));
+    const sub = [a.media_artist, a.app_name || a.source].filter(Boolean).join(" · ");
+    const b = (svc, icon, label, cls = "") => `<button class="mb ${cls}" data-action="mp" data-svc="${svc}" data-entity="${esc(id)}" aria-label="${label}"><ha-icon icon="${icon}"></ha-icon></button>`;
+    const ctl = [];
+    if (!off) {
+      if (can(16)) ctl.push(b("media_previous_track", "mdi:skip-previous", "Zurück"));
+      if (can(1) || can(16384)) ctl.push(b("media_play_pause", playing ? "mdi:pause" : "mdi:play", playing ? "Pause" : "Wiedergabe", "main"));
+      if (can(32)) ctl.push(b("media_next_track", "mdi:skip-next", "Weiter"));
+      if (can(8)) ctl.push(b("volume_mute", a.is_volume_muted ? "mdi:volume-off" : "mdi:volume-high", "Stumm"));
+    }
+    if (off ? can(128) : can(256)) ctl.push(b(off ? "turn_on" : "turn_off", "mdi:power", off ? "Einschalten" : "Ausschalten", off ? "" : "on"));
+    const vol = !off && can(4) && a.volume_level != null
+      ? `<div class="vrow"><ha-icon icon="mdi:volume-medium"></ha-icon><input class="vol" type="range" min="0" max="100" value="${Math.round(a.volume_level * 100)}" data-entity="${esc(id)}" aria-label="Lautstärke"></div>` : "";
+    return `
+      <div class="mp ${off ? "off" : ""} ${playing ? "playing" : ""}">
+        <div class="mtop">
+          <span class="mcover">${pic ? `<img src="${esc(pic)}" alt="" loading="lazy">` : `<ha-icon icon="${esc(this._icon(id))}"></ha-icon>`}</span>
+          <span class="mtx" data-action="info" data-entity="${esc(id)}" role="button" tabindex="0"><span class="mn">${esc(this._name(id))}</span><span class="mt">${esc(title)}</span>${sub ? `<span class="ms">${esc(sub)}</span>` : ""}</span>
+        </div>
+        ${ctl.length ? `<div class="mctl">${ctl.join("")}</div>` : ""}
+        ${vol}
+      </div>`;
+  }
+
+  _roomPage(r) {
+    const groups = this._groups(r);
+    const grp = (key) => groups.find((g) => g.c.key === key);
+    const sh = (icon, text, extra = "") => `<div class="sh"><ha-icon icon="${icon}"></ha-icon><span>${text}</span>${extra}</div>`;
+    const offIds = this._allOffIds(r);
+    const onIds = this._lightsOffIds(r);
+    const qa = (offIds.length || onIds.length) ? `<div class="qa">
+      ${offIds.length ? `<button class="alloff" data-action="alloff" data-room="${esc(r.id)}"><ha-icon icon="mdi:led-variant-off"></ha-icon>${this._flash === "off:" + r.id ? "Ausgeschaltet" : `Alles aus (${offIds.length})`}</button>` : ""}
+      ${onIds.length ? `<button class="alloff on" data-action="lightson" data-room="${esc(r.id)}"><ha-icon icon="mdi:led-on"></ha-icon>${this._flash === "on:" + r.id ? "Eingeschaltet" : `Licht an (${onIds.length})`}</button>` : ""}
+    </div>` : "";
+    const lights = grp("light");
+    const contacts = this._contacts(r);
+    const openN = contacts.filter((id) => this._hass.states[id].state === "on").length;
+    const media = r.ids.filter((id) => id.startsWith("media_player.") && !HIDE_RE.test(id) && this._hass.states[id].state !== "unavailable");
+    const contactSet = new Set(contacts);
+    if (r.win) contactSet.add(r.win);
+    const others = groups.filter((g) => !["climate", "light", "media"].includes(g.c.key))
+      .map((g) => ({ c: g.c, items: g.items.filter((id) => !contactSet.has(id)) })).filter((g) => g.items.length);
+    return `
+      <div class="sec">${sh("mdi:thermometer", "Klima")}${this._roomCard(r, 0)}</div>
+      ${lights ? `<div class="sec">${sh("mdi:lamps-outline", "Lampen")}${qa}<div class="tiles">${lights.items.map((id) => this._deviceRow(id)).join("")}</div></div>` : ""}
+      ${contacts.length ? `<div class="sec">${sh("mdi:window-closed-variant", "Türen und Fenster", `<span class="cnt ${openN ? "bad" : "ok"}">${openN ? `${openN} offen` : "alle zu"}</span>`)}<div class="wlist">${contacts.map((id) => this._contactRow(id)).join("")}</div></div>` : ""}
+      ${media.length ? `<div class="sec">${sh("mdi:speaker", "Multimedia")}<div class="mlist">${media.map((id) => this._mediaCard(id)).join("")}</div></div>` : ""}
+      ${others.length ? `<div class="sec">${sh("mdi:devices", "Weitere Geräte")}${others.map((g) => `<div class="cat"><ha-icon icon="${g.c.icon}"></ha-icon>${g.c.title}</div><div class="tiles">${g.items.map((id) => this._deviceRow(id)).join("")}</div>`).join("")}</div>` : ""}
+      <div class="sec">${this._insights(r)}</div>`;
+  }
+
   _lightsOffIds(r) {
     return r.ids.filter((id) => id.startsWith("light.") && this._popupVisible(id) && this._hass.states[id].state === "off");
   }
@@ -680,7 +801,7 @@ class RaumUebersichtCard extends HTMLElement {
   }
 
   _render() {
-    if (!this._hass || !this._config) return;
+    if (!this._hass || !this._config || this._drag) return;
     const rooms = this._rooms();
     const roomMode = !!this._config.room;
     const open = roomMode ? rooms[0] : rooms.find((r) => r.id === this._openRoom);
@@ -691,7 +812,7 @@ class RaumUebersichtCard extends HTMLElement {
       <style>${RUC_STYLE}</style>
       <ha-card>
         ${title ? `<div class="title">${esc(title)}</div>` : ""}
-        ${open ? `<div class="grid" style="--cols:1">${this._roomCard(open, 0)}</div>${this._popup(open, true)}` : `<p class="empty">Bereich nicht gefunden. Prüfe den Namen unter room.</p>`}
+        ${open ? this._roomPage(open) : `<p class="empty">Bereich nicht gefunden. Prüfe den Namen unter room.</p>`}
       </ha-card>` : `
       <style>${RUC_STYLE}</style>
       <ha-card>
@@ -747,6 +868,7 @@ class RaumUebersichtCard extends HTMLElement {
   }
 
   _onClick(e) {
+    if (e.target.closest && e.target.closest('input[type="range"]')) return;
     const el = e.target.closest("[data-action]");
     if (!el) return;
     const action = el.dataset.action;
@@ -762,6 +884,11 @@ class RaumUebersichtCard extends HTMLElement {
     } else if (action === "heat") {
       e.stopPropagation();
       this._heat(el.dataset.entity, el.dataset.mode === "on");
+    } else if (action === "mp") {
+      e.stopPropagation();
+      this._hass.callService("media_player", el.dataset.svc, el.dataset.svc === "volume_mute"
+        ? { entity_id: el.dataset.entity, is_volume_muted: !(this._hass.states[el.dataset.entity].attributes.is_volume_muted) }
+        : { entity_id: el.dataset.entity });
     } else if (action === "lightson") {
       const r = this._rooms().find((x) => x.id === el.dataset.room);
       if (r) this._hass.callService("light", "turn_on", { entity_id: this._lightsOffIds(r) });
@@ -872,6 +999,48 @@ const RUC_STYLE = `
   .tile.alert { background: color-mix(in srgb, var(--error-color, #db4437) 22%, var(--secondary-background-color)); }
   .tile.alert .dic { background: var(--error-color, #db4437); color: #fff; }
 
+  .sec { margin-top: 22px; }
+  .sec:first-child { margin-top: 4px; }
+  .sh { display: flex; align-items: center; gap: 8px; font-size: 19px; font-weight: 500; letter-spacing: -.01em; color: var(--primary-text-color); margin: 0 4px 12px; --mdc-icon-size: 22px; }
+  .sh ha-icon { color: var(--secondary-text-color); }
+  .sh span:not(.cnt) { flex: 1; }
+  .cnt { font-size: 13px; font-weight: 400; padding: 4px 10px; border-radius: 999px; }
+  .cnt.ok { background: color-mix(in srgb, var(--success-color, #43a047) 20%, transparent); color: var(--success-color, #66bb6a); }
+  .cnt.bad { background: color-mix(in srgb, var(--error-color, #db4437) 22%, transparent); color: var(--error-color, #ef5350); }
+  .sec .qa { margin: 0 0 10px; }
+  input.bri, input.vol { width: 100%; margin: 8px 0 2px; accent-color: var(--state-light-active-color, #ffc107); height: 28px; }
+  input.vol { accent-color: var(--primary-color); margin: 0; flex: 1; }
+  .wlist { display: flex; flex-direction: column; gap: 8px; }
+  .wrow { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 18px; cursor: pointer; outline: none; background: var(--secondary-background-color); }
+  .wic { flex: none; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; --mdc-icon-size: 22px;
+    background: color-mix(in srgb, var(--primary-text-color) 10%, transparent); color: var(--secondary-text-color); }
+  .wrow.open .wic { background: color-mix(in srgb, var(--error-color, #db4437) 26%, transparent); color: var(--error-color, #ef5350); }
+  .wrow.closed .wic { background: color-mix(in srgb, var(--success-color, #43a047) 22%, transparent); color: var(--success-color, #66bb6a); }
+  .wt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .wn { font-size: 15px; font-weight: 500; color: var(--primary-text-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ws { font-size: 12px; color: var(--secondary-text-color); }
+  .wst { flex: none; font-size: 13px; color: var(--secondary-text-color); }
+  .wrow.open .wst { color: var(--error-color, #ef5350); }
+  .wrow.closed .wst { color: var(--success-color, #66bb6a); }
+  .mlist { display: flex; flex-direction: column; gap: 10px; }
+  .mp { display: flex; flex-direction: column; gap: 12px; padding: 14px; border-radius: 20px; background: var(--secondary-background-color); }
+  .mp.off { opacity: .8; }
+  .mtop { display: flex; align-items: center; gap: 12px; }
+  .mcover { flex: none; width: 60px; height: 60px; border-radius: 14px; overflow: hidden; display: flex; align-items: center; justify-content: center; --mdc-icon-size: 28px;
+    background: color-mix(in srgb, var(--primary-text-color) 10%, transparent); color: var(--secondary-text-color); }
+  .mcover img { width: 100%; height: 100%; object-fit: cover; }
+  .mp.playing .mcover { box-shadow: 0 0 0 2px var(--primary-color); }
+  .mtx { flex: 1; min-width: 0; display: flex; flex-direction: column; cursor: pointer; outline: none; }
+  .mn { font-size: 12px; color: var(--secondary-text-color); }
+  .mt { font-size: 16px; font-weight: 500; color: var(--primary-text-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ms { font-size: 13px; color: var(--secondary-text-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mctl { display: flex; align-items: center; justify-content: center; gap: 10px; }
+  .mb { width: 44px; height: 44px; padding: 0; border: none; border-radius: 50%; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; --mdc-icon-size: 24px;
+    background: color-mix(in srgb, var(--primary-text-color) 10%, transparent); color: var(--primary-text-color); transition: transform .1s ease; }
+  .mb:active { transform: scale(.92); }
+  .mb.main { width: 54px; height: 54px; background: var(--primary-color); color: #fff; --mdc-icon-size: 28px; }
+  .mb.on { color: var(--primary-color); }
+  .vrow { display: flex; align-items: center; gap: 8px; color: var(--secondary-text-color); --mdc-icon-size: 20px; }
   .overlay { position: fixed; inset: 0; z-index: 9; display: flex; align-items: flex-end; justify-content: center; background: rgba(0,0,0,.5);
     backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); animation: fade .2s ease; }
   .sheet { width: 100%; max-width: 600px; max-height: 90vh; overflow: auto; padding: 8px 16px 28px; background: var(--card-background-color);
