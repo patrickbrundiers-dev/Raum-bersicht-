@@ -1,50 +1,80 @@
 # Raumübersicht für Home Assistant
 
-Modernes Dashboard mit Raumübersicht und Geräte-Popups für Home Assistant. Passt zur Integration [Smart Ventilation](https://github.com/patrickbrundiers-dev/smart_ventilation).
+Eine Dashboard-Karte, die alle Räume auf einen Blick zeigt. Ein Tipp auf einen Raum öffnet ein Popup mit allen Geräten des Raums, nach Kategorien sortiert. Passt zur Integration [Smart Ventilation](https://github.com/patrickbrundiers-dev/smart_ventilation).
 
-## Inhalt
+Die Karte liest Räume und Geräte selbst aus den **Bereichen (Areas)** von Home Assistant. Du musst keine Entity-IDs eintragen.
 
-| Datei | Zweck |
+## Was sie zeigt
+
+**Raumkarte**
+- Temperatur, Luftfeuchte (grün, gelb, rot als Schimmel-Ampel) und Fensterstatus mit Dauer
+- Heizung mit Solltemperatur
+- Lüftungsempfehlung von Smart Ventilation, falls vorhanden
+
+**Popup pro Raum**
+- Heizung und Klima, Licht, Steckdosen und Schalter, Rollos, Medien, Sensoren, Kontakte
+- Licht und Schalter direkt umschaltbar, Tipp auf ein Gerät öffnet die Detailansicht
+- Diagnose- und versteckte Entitäten werden ausgeblendet
+
+## Installation über HACS
+
+1. HACS öffnen, oben rechts ⋮, **Benutzerdefinierte Repositories**.
+2. Repository `https://github.com/patrickbrundiers-dev/raum-bersicht-` eintragen, Typ **Dashboard**, hinzufügen.
+3. **Raumübersicht** in HACS herunterladen.
+4. Browser neu laden (Strg + F5) oder in der App den Frontend-Cache zurücksetzen.
+
+HACS legt die Ressource automatisch an. Falls nicht: Einstellungen, Dashboards, ⋮, Ressourcen, `/hacsfiles/raum-bersicht-/raum-uebersicht-card.js` als JavaScript-Modul hinzufügen.
+
+## Verwendung
+
+Karte hinzufügen und **Raumübersicht** suchen, oder per YAML:
+
+```yaml
+type: custom:raum-uebersicht-card
+```
+
+Damit erscheinen alle Bereiche, die einen Temperatursensor oder ein Thermostat haben.
+
+### Optionen
+
+```yaml
+type: custom:raum-uebersicht-card
+title: Räume
+columns: 2
+rooms:
+  - Schlafzimmer            # Kurzform: Name oder ID des Bereichs
+  - area: Wohnzimmer
+    name: Wohnzimmer unten  # optionaler Anzeigename
+    icon: mdi:sofa
+  - area: Bad
+    temperature: sensor.bad_temperatur   # automatische Erkennung übersteuern
+    humidity: sensor.bad_luftfeuchtigkeit
+    window: binary_sensor.bad_fenster
+    climate: climate.bad
+    ventilation: sensor.bad_empfehlung
+```
+
+| Option | Bedeutung |
 | --- | --- |
-| `dashboards/raumuebersicht.yaml` | Ansicht im Sections-Layout mit einer Karte pro Raum |
-| `dashboards/raum_popups.yaml` | Popups mit allen Geräten je Raum, nach Kategorien sortiert |
+| `title` | Überschrift über den Karten |
+| `columns` | Karten pro Zeile, Standard 2 |
+| `rooms` | Reihenfolge und Auswahl der Räume, Standard alle passenden Bereiche |
 
-## Was die Raumübersicht zeigt
+### Automatische Erkennung
 
-- Kopfzeile mit Wetter und Außentemperatur
-- Pro Raum: Fensterstatus mit Dauer, Temperaturverlauf über 24 Stunden, Feuchte-Ampel (Schimmelschutz), Heizung mit Solltemperatur und die Lüften-Karte von Smart Ventilation
-- Ein Tipp auf den Raumnamen öffnet das Geräte-Popup
+| Anzeige | Gefunden über |
+| --- | --- |
+| Temperatur, Feuchte | Sensor mit Geräteklasse `temperature` bzw. `humidity` im Bereich |
+| Fenster | Binärsensor mit Geräteklasse Fenster, Tür oder Öffnung |
+| Heizung | erste `climate`-Entität im Bereich |
+| Lüften | Sensor im Bereich, dessen ID auf `_empfehlung` endet |
 
-## Was die Popups zeigen
+Voraussetzung ist, dass Geräte einem Bereich zugeordnet sind, entweder das Gerät selbst oder die einzelne Entität.
 
-Alle Geräte des Raums, automatisch aus dem Bereich (Area) geholt und sortiert nach Heizung und Klima, Licht, Steckdosen und Schalter, Rollos, Medien, Sensoren sowie Kontakten. Leere Kategorien werden ausgeblendet. Diagnose-Entitäten sind ausgefiltert.
+## Alternative ohne HACS-Karte
 
-## Voraussetzungen
-
-- Home Assistant mit Sections-Dashboards
-- [Smart Ventilation](https://github.com/patrickbrundiers-dev/smart_ventilation) ab Version 2.0.0
-- HACS-Frontend-Karten: **Bubble Card** und **auto-entities**
-- Bereiche (Areas) heißen wie die Räume: Schlafzimmer, Wohnzimmer, Bad, Nele, Lisa
-
-## Einbau
-
-1. Dashboard öffnen, Stift, dann ⋮ und **Raw-Konfigurationseditor**.
-2. Inhalt von `raumuebersicht.yaml` als neue Ansicht unter `views:` einfügen.
-3. Inhalt von `raum_popups.yaml` in dieselbe Ansicht einfügen, am besten ans Ende.
-4. Speichern.
-
-## Anpassen
-
-Die Entity-IDs in `raumuebersicht.yaml` sind Platzhalter und folgen diesem Schema:
-
-- `sensor.<raum>_temperatur`, `sensor.<raum>_luftfeuchtigkeit`
-- `binary_sensor.<raum>_fenster`
-- `climate.<raum>`
-- `sensor.<raum>_empfehlung` (von Smart Ventilation)
-- `weather.forecast_home`, `sensor.aussentemperatur` in der Kopfzeile
-
-Bitte auf die eigenen Namen anpassen. Fehlende Entitäten zeigt Home Assistant als rote Karten.
+In `examples/` liegen zwei YAML-Dashboards, die stattdessen Standardkarten sowie Bubble Card und auto-entities nutzen. Die Entity-IDs darin sind Platzhalter.
 
 ## Status
 
-Die Dateien sind als YAML geprüft, aber noch nicht in einer echten Home-Assistant-Installation getestet.
+Version 1.0.0. Die Logik ist mit simulierten Home-Assistant-Daten geprüft, aber noch nicht in einer echten Installation getestet. Rückmeldungen und Screenshots helfen.
