@@ -2,7 +2,7 @@
  * Zeigt alle Räume (Areas) als Karten und öffnet pro Raum ein Popup
  * mit allen Geräten, nach Kategorien sortiert. Keine Entity-IDs nötig.
  */
-const RUC_VERSION = "3.1.1";
+const RUC_VERSION = "3.2.0";
 
 const CATEGORIES = [
   { key: "climate", title: "Heizung und Klima", icon: "mdi:radiator", domains: ["climate", "water_heater"] },
@@ -1166,10 +1166,11 @@ const EDITOR_LABELS = {
   mode: "Ansicht", title: "Titel", rooms: "Räume (leer = alle)", exclude: "Räume ausblenden", columns: "Räume pro Zeile", sort: "Sortierung",
   summary: "Kopfzeile mit Chips zeigen", hero: "Karte \"Dringendster Raum\" zeigen", weather: "Wetter", outdoor: "Außentemperatur", season: "Sommer/Winter-Modus",
   more_sensors: "Weitere Sensoren im Popup anbieten", announce_service: "Ansage-Dienst", announce_targets: "Lautsprecher für Ansagen",
-  area: "Raum (Bereich)", name: "Anzeigename", icon: "Symbol", temperature: "Temperatursensor", humidity: "Feuchtesensor", window: "Fenster oder Fenstergruppe",
+  area: "Raum (Bereich)", area_only: "Nur Entitäten aus diesem Raum zur Auswahl anbieten", name: "Anzeigename", icon: "Symbol", temperature: "Temperatursensor", humidity: "Feuchtesensor", window: "Fenster oder Fenstergruppe",
   climate: "Heizung (Better Thermostat)", ventilation: "Lüftungsempfehlung (Smart Ventilation)", include: "Zusätzliche Sensoren und Geräte", hide: "Diese Entitäten ausblenden",
 };
 const EDITOR_HELP = {
+  area_only: "Gilt für Temperatur, Feuchte, Fenster, Heizung und Lüftung. Ausschalten, um Entitäten aus allen Räumen zu sehen.",
   include: "Diese Entitäten werden immer angezeigt, auch wenn sie sonst als unwichtig gelten.",
   hide: "Diese Entitäten erscheinen nirgends in der Karte.",
   window: "Nur nötig, wenn die automatische Erkennung nicht passt. Bei einer Gruppe werden die einzelnen Fenster gezeigt.",
@@ -1192,8 +1193,25 @@ class RaumUebersichtCardEditor extends HTMLElement {
 
   get _mode() { return this._config && this._config.room ? "room" : "overview"; }
 
+  _areaEntities() {
+    const r = this._config && this._config.room;
+    const h = this._hass;
+    if (!r || !h || !h.entities) return null;
+    const area = this._findAreaId(typeof r === "string" ? r : r.area || r.name);
+    if (!area || (typeof r === "object" && r.area_only === false)) return null;
+    const ids = Object.keys(h.entities).filter((id) => {
+      const e = h.entities[id];
+      const dev = e.device_id && h.devices && h.devices[e.device_id];
+      return (e.area_id || (dev && dev.area_id)) === area;
+    });
+    // eingetragene Entitäten dürfen nie aus der Auswahl fallen
+    Object.values(typeof r === "object" ? r : {}).flat().forEach((x) => { if (typeof x === "string" && x.includes(".") && !ids.includes(x)) ids.push(x); });
+    return ids.length ? ids : null;
+  }
+
   _schema() {
-    const ent = (name, filter, multiple = false) => ({ name, selector: { entity: { ...(filter && Object.keys(filter).length ? { filter } : {}), multiple } } });
+    const inArea = this._areaEntities();
+    const ent = (name, filter, multiple = false, scoped = false) => ({ name, selector: { entity: { ...(filter && Object.keys(filter).length ? { filter } : {}), ...(scoped && inArea ? { include_entities: inArea } : {}), multiple } } });
     const modeField = { name: "mode", selector: { select: { mode: "box", options: [
       { value: "overview", label: "Übersicht aller Räume" }, { value: "room", label: "Einzelner Raum (Raumseite)" }] } } };
     const announce = [
@@ -1204,12 +1222,13 @@ class RaumUebersichtCardEditor extends HTMLElement {
       return [
         modeField,
         { name: "area", required: true, selector: { area: {} } },
+        { name: "area_only", selector: { boolean: {} } },
         { name: "", type: "expandable", title: "Sensoren und Geräte", icon: "mdi:thermometer", expanded: true, schema: [
-          ent("temperature", { domain: "sensor", device_class: "temperature" }),
-          ent("humidity", { domain: "sensor", device_class: "humidity" }),
-          ent("window", { domain: "binary_sensor" }),
-          ent("climate", { domain: "climate" }),
-          ent("ventilation", { domain: "sensor" }),
+          ent("temperature", { domain: "sensor", device_class: "temperature" }, false, true),
+          ent("humidity", { domain: "sensor", device_class: "humidity" }, false, true),
+          ent("window", { domain: "binary_sensor" }, false, true),
+          ent("climate", { domain: "climate" }, false, true),
+          ent("ventilation", { domain: "sensor" }, false, true),
           ent("include", {}, true),
           ent("hide", {}, true),
         ] },
@@ -1259,7 +1278,7 @@ class RaumUebersichtCardEditor extends HTMLElement {
     if (this._mode === "room") {
       const r = typeof c.room === "string" ? { area: c.room } : c.room;
       const area = this._findAreaId(r.area || r.name);
-      return { ...data, ...r, area: area || r.area || "" };
+      return { ...data, ...r, area: area || r.area || "", area_only: r.area_only !== false };
     }
     return {
       ...data,
@@ -1290,7 +1309,8 @@ class RaumUebersichtCardEditor extends HTMLElement {
       this.appendChild(this._form);
     }
     if (this._form.hass !== this._hass) this._form.hass = this._hass;
-    const mode = this._mode;
+    const r = this._config.room;
+    const mode = this._mode + "|" + (r && typeof r === "object" ? r.area + "|" + r.area_only : r);
     if (this._schemaMode !== mode) {
       this._schemaMode = mode;
       this._form.schema = this._schema();
@@ -1319,7 +1339,7 @@ class RaumUebersichtCardEditor extends HTMLElement {
     if (v.mode === "room") {
       const prev = typeof old.room === "object" && old.room ? old.room : {};
       const room = this._clean({
-        ...prev, area: v.area, name: v.name, icon: v.icon, temperature: v.temperature, humidity: v.humidity,
+        ...prev, area: v.area, area_only: v.area_only === false ? false : undefined, name: v.name, icon: v.icon, temperature: v.temperature, humidity: v.humidity,
         window: v.window, climate: v.climate, ventilation: v.ventilation, include: v.include, hide: v.hide,
       });
       delete room.announce;

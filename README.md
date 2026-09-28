@@ -52,6 +52,8 @@ Oben wählst du den Modus:
 - **Übersicht aller Räume:** Titel, Räume (Bereichsauswahl, leer heißt alle), Kopfzeile (Zusammenfassung, Hero, Wetter, Außensensor, Jahreszeit), Darstellung (Spalten, Sortierung, ausgeschlossene Bereiche, Alexa-Ansage) sowie zusätzliche und ausgeblendete Entitäten für alle Räume.
 - **Einzelner Raum:** Bereich wählen, dann unter "Sensoren und Geräte" Temperatur, Feuchte, Fenster, Heizung und Lüftungsempfehlung per Entitätsauswahl festlegen. Unter "Weitere Sensoren anzeigen" fügst du beliebige Entitäten hinzu, unter "Ausblenden" nimmst du welche weg.
 
+Im Raum-Modus bieten die Auswahlfelder für Temperatur, Feuchte, Fenster, Heizung und Lüftung standardmäßig nur Entitäten aus dem gewählten Raum an. Der Schalter "Nur Entitäten aus diesem Raum" hebt das auf (`area_only: false` unter `room`).
+
 Ein Moduswechsel setzt die Einstellungen zurück. Pro-Raum-Überschreibungen in `rooms` bleiben beim Bearbeiten in der Übersicht erhalten.
 
 Dasselbe per YAML:
@@ -164,4 +166,4 @@ In `examples/` liegen zwei YAML-Dashboards, die stattdessen Standardkarten sowie
 
 ## Status
 
-Version 3.1.0 (mit visuellem Editor). Der Editor nutzt die eingebauten Formularfelder von Home Assistant und ist bisher nur mit einer Attrappe getestet. Die Logik ist mit simulierten Home-Assistant-Daten geprüft, aber noch nicht in einer echten Installation getestet. Rückmeldungen und Screenshots helfen.
+Version 3.2.0 (mit visuellem Editor). Der Editor nutzt die eingebauten Formularfelder von Home Assistant und ist bisher nur mit einer Attrappe getestet. Die Logik ist mit simulierten Home-Assistant-Daten geprüft, aber noch nicht in einer echten Installation getestet. Rückmeldungen und Screenshots helfen.
