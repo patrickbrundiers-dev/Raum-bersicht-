@@ -43,7 +43,18 @@ HACS legt die Ressource automatisch an. Falls nicht: Einstellungen, Dashboards, 
 
 ## Verwendung
 
-Karte hinzufügen und **Raumübersicht** suchen, oder per YAML:
+Karte hinzufügen und **Raumübersicht** suchen. Der visuelle Editor öffnet sich von selbst, YAML ist nicht nötig.
+
+### Visueller Editor
+
+Oben wählst du den Modus:
+
+- **Übersicht aller Räume:** Titel, Räume (Bereichsauswahl, leer heißt alle), Kopfzeile (Zusammenfassung, Hero, Wetter, Außensensor, Jahreszeit), Darstellung (Spalten, Sortierung, ausgeschlossene Bereiche, Alexa-Ansage) sowie zusätzliche und ausgeblendete Entitäten für alle Räume.
+- **Einzelner Raum:** Bereich wählen, dann unter "Sensoren und Geräte" Temperatur, Feuchte, Fenster, Heizung und Lüftungsempfehlung per Entitätsauswahl festlegen. Unter "Weitere Sensoren anzeigen" fügst du beliebige Entitäten hinzu, unter "Ausblenden" nimmst du welche weg.
+
+Ein Moduswechsel setzt die Einstellungen zurück. Pro-Raum-Überschreibungen in `rooms` bleiben beim Bearbeiten in der Übersicht erhalten.
+
+Dasselbe per YAML:
 
 ```yaml
 type: custom:raum-uebersicht-card
@@ -93,6 +104,8 @@ rooms:
 | `season` | Sensor für Sommer/Winter-Modus. Wird automatisch gefunden, wenn ein Sensor mit "modus" in der ID den Zustand Winter oder Sommer hat |
 | `all_off` | Welche Geräte "Alles aus" ausschaltet, Standard nur `[light]`. "Licht an" schaltet immer nur Lichter ein. Mit `[light, switch]` kommen Steckdosen dazu, Kühlschrank, Gefrierschrank, Router, NAS, Server und Alarm bleiben aber immer an. `false` blendet den Button aus |
 | `exclude` | Räume ausblenden, zum Beispiel `[Balkon]`. Sie zählen dann auch nicht bei "zu feucht" |
+| `include` | Liste von Entitäten, die im Popup immer erscheinen, auch ohne Bereich. Pro Raum unter `rooms` oder `room` möglich |
+| `hide` | Liste von Entitäts-IDs oder Namensteilen, die nie erscheinen. Pro Raum möglich |
 | `show_unavailable` | `true` zeigt auch nicht erreichbare Geräte im Popup, Standard aus |
 | `media` | `always` zeigt Lautsprecher auch im Leerlauf, Standard nur bei Wiedergabe oder Pause |
 | `sort` | `urgency` (Dringendes zuerst), `name` (alphabetisch) oder `config` (Reihenfolge aus `rooms`) |
@@ -138,4 +151,4 @@ In `examples/` liegen zwei YAML-Dashboards, die stattdessen Standardkarten sowie
 
 ## Status
 
-Version 2.6.0. Die Logik ist mit simulierten Home-Assistant-Daten geprüft, aber noch nicht in einer echten Installation getestet. Rückmeldungen und Screenshots helfen.
+Version 3.0.0 (mit visuellem Editor). Der Editor nutzt die eingebauten Formularfelder von Home Assistant und ist bisher nur mit einer Attrappe getestet. Die Logik ist mit simulierten Home-Assistant-Daten geprüft, aber noch nicht in einer echten Installation getestet. Rückmeldungen und Screenshots helfen.

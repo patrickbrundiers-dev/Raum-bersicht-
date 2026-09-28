@@ -2,7 +2,7 @@
  * Zeigt alle Räume (Areas) als Karten und öffnet pro Raum ein Popup
  * mit allen Geräten, nach Kategorien sortiert. Keine Entity-IDs nötig.
  */
-const RUC_VERSION = "2.6.0";
+const RUC_VERSION = "3.0.0";
 
 const CATEGORIES = [
   { key: "climate", title: "Heizung und Klima", icon: "mdi:radiator", domains: ["climate", "water_heater"] },
@@ -92,6 +92,8 @@ class RaumUebersichtCard extends HTMLElement {
 
   static getStubConfig() { return { type: "custom:raum-uebersicht-card" }; }
 
+  static getConfigElement() { return document.createElement("raum-uebersicht-card-editor"); }
+
   setConfig(config) {
     this._config = { columns: 1, sort: "urgency", ...config };
     this._sig = "";
@@ -136,6 +138,8 @@ class RaumUebersichtCard extends HTMLElement {
 
   _rooms() {
     const h = this._hass;
+    this._forced = new Set();
+    this._hiddenExtra = [];
     const cfgRooms = this._config.room ? [this._config.room] : this._config.rooms;
     let list = [];
     if (Array.isArray(cfgRooms) && cfgRooms.length) {
@@ -253,6 +257,9 @@ class RaumUebersichtCard extends HTMLElement {
     const h = this._hass;
     const has = (id) => id && h.states[id];
     [cfg.window, cfg.temperature, cfg.humidity, cfg.climate, cfg.ventilation].filter(has).forEach((id) => { if (!ids.includes(id)) ids.push(id); });
+    const inc = [...(Array.isArray(cfg.include) ? cfg.include : []), ...(Array.isArray(this._config.include) ? this._config.include : [])];
+    inc.filter(has).forEach((id) => { this._forced.add(id); if (!ids.includes(id)) ids.push(id); });
+    (Array.isArray(cfg.hide) ? cfg.hide : []).forEach((x) => this._hiddenExtra.push(String(x)));
     const temp = has(cfg.temperature) ? cfg.temperature : this._bestSensor(ids, ["temperature"], ["°C", "°F"]);
     const hum = has(cfg.humidity) ? cfg.humidity : this._bestSensor(ids, ["humidity"], ["%"]);
     const win = has(cfg.window) ? cfg.window : this._bestWindow(ids);
@@ -607,6 +614,8 @@ class RaumUebersichtCard extends HTMLElement {
   _popupVisible(id) {
     const st = this._hass.states[id];
     if (!st) return false;
+    if (this._forced && this._forced.has(id)) return true;
+    if ((this._hiddenExtra || []).some((x) => id.includes(x))) return false;
     if (HIDE_RE.test(id) || HIDE_NAME_RE.test(st.attributes.friendly_name || "")) return false;
     if (st.state === "unavailable" && this._config.show_unavailable !== true) return false;
     if (id.startsWith("media_player.") && this._config.media !== "always" && !["playing", "paused", "buffering", "on"].includes(st.state)) return false;
@@ -636,6 +645,7 @@ class RaumUebersichtCard extends HTMLElement {
   }
 
   _isEssential(id) {
+    if (this._forced && this._forced.has(id)) return true;
     const domain = id.split(".")[0];
     if (domain === "sensor") return ESSENTIAL_SENSOR.includes(this._dc(id));
     if (domain === "binary_sensor") return ESSENTIAL_BINARY.includes(this._dc(id)) || (!this._dc(id) && WINDOW_NAME_RE.test(`${id} ${this._name(id)}`));
@@ -1101,11 +1111,199 @@ const RUC_STYLE = `
     border: 1px dashed var(--divider-color); background: none; color: var(--secondary-text-color); --mdc-icon-size: 18px; }
 `;
 
+/* ---------- Visueller Editor ---------- */
+const EDITOR_LABELS = {
+  mode: "Ansicht", title: "Titel", rooms: "Räume (leer = alle)", exclude: "Räume ausblenden", columns: "Räume pro Zeile", sort: "Sortierung",
+  summary: "Kopfzeile mit Chips zeigen", hero: "Karte \"Dringendster Raum\" zeigen", weather: "Wetter", outdoor: "Außentemperatur", season: "Sommer/Winter-Modus",
+  more_sensors: "Weitere Sensoren im Popup anbieten", announce_service: "Ansage-Dienst", announce_targets: "Lautsprecher für Ansagen",
+  area: "Raum (Bereich)", name: "Anzeigename", icon: "Symbol", temperature: "Temperatursensor", humidity: "Feuchtesensor", window: "Fenster oder Fenstergruppe",
+  climate: "Heizung (Better Thermostat)", ventilation: "Lüftungsempfehlung (Smart Ventilation)", include: "Zusätzliche Sensoren und Geräte", hide: "Diese Entitäten ausblenden",
+};
+const EDITOR_HELP = {
+  include: "Diese Entitäten werden immer angezeigt, auch wenn sie sonst als unwichtig gelten.",
+  hide: "Diese Entitäten erscheinen nirgends in der Karte.",
+  window: "Nur nötig, wenn die automatische Erkennung nicht passt. Bei einer Gruppe werden die einzelnen Fenster gezeigt.",
+  temperature: "Leer lassen für automatische Erkennung.",
+  announce_targets: "Zeigt in der Raumkarte einen Ansagen-Button. Benötigt Alexa Media Player.",
+  season: "Leer lassen für automatische Erkennung.",
+};
+
+class RaumUebersichtCardEditor extends HTMLElement {
+  setConfig(config) {
+    this._config = config || {};
+    this._update();
+  }
+
+  set hass(hass) {
+    this._hass = hass;
+    this._update();
+  }
+
+  get _mode() { return this._config && this._config.room ? "room" : "overview"; }
+
+  _schema() {
+    const ent = (name, filter, multiple = false) => ({ name, selector: { entity: { ...(filter && Object.keys(filter).length ? { filter } : {}), multiple } } });
+    const modeField = { name: "mode", selector: { select: { mode: "box", options: [
+      { value: "overview", label: "Übersicht aller Räume" }, { value: "room", label: "Einzelner Raum (Raumseite)" }] } } };
+    const announce = [
+      { name: "announce_service", selector: { text: {} } },
+      { name: "announce_targets", selector: { entity: { filter: { domain: "media_player" }, multiple: true } } },
+    ];
+    if (this._mode === "room") {
+      return [
+        modeField,
+        { name: "area", required: true, selector: { area: {} } },
+        { name: "", type: "expandable", title: "Sensoren und Geräte", icon: "mdi:thermometer", expanded: true, schema: [
+          ent("temperature", { domain: "sensor", device_class: "temperature" }),
+          ent("humidity", { domain: "sensor", device_class: "humidity" }),
+          ent("window", { domain: "binary_sensor" }),
+          ent("climate", { domain: "climate" }),
+          ent("ventilation", { domain: "sensor" }),
+          ent("include", {}, true),
+          ent("hide", {}, true),
+        ] },
+        { name: "", type: "expandable", title: "Darstellung", icon: "mdi:palette-outline", schema: [
+          { name: "name", selector: { text: {} } },
+          { name: "icon", selector: { icon: {} } },
+          { name: "more_sensors", selector: { boolean: {} } },
+          ...announce,
+        ] },
+      ];
+    }
+    return [
+      modeField,
+      { name: "title", selector: { text: {} } },
+      { name: "rooms", selector: { area: { multiple: true } } },
+      { name: "", type: "expandable", title: "Kopfzeile", icon: "mdi:weather-partly-cloudy", schema: [
+        { name: "summary", selector: { boolean: {} } },
+        { name: "hero", selector: { boolean: {} } },
+        ent("weather", { domain: "weather" }),
+        ent("outdoor", { domain: "sensor", device_class: "temperature" }),
+        ent("season", {}),
+      ] },
+      { name: "", type: "expandable", title: "Darstellung", icon: "mdi:palette-outline", schema: [
+        { name: "exclude", selector: { area: { multiple: true } } },
+        { name: "columns", selector: { number: { min: 1, max: 4, mode: "box" } } },
+        { name: "sort", selector: { select: { mode: "dropdown", options: [
+          { value: "urgency", label: "Dringendes zuerst" }, { value: "name", label: "Alphabetisch" }, { value: "config", label: "Wie ausgewählt" }] } } },
+        { name: "more_sensors", selector: { boolean: {} } },
+        ...announce,
+      ] },
+      { name: "", type: "expandable", title: "Sensoren und Geräte für alle Räume", icon: "mdi:eye-plus-outline", schema: [
+        ent("include", {}, true),
+        ent("hide", {}, true),
+      ] },
+    ];
+  }
+
+  _data() {
+    const c = this._config;
+    const data = { mode: this._mode, more_sensors: c.more_sensors === true };
+    const ann = c.announce || (c.room && typeof c.room === "object" && c.room.announce);
+    if (ann) {
+      data.announce_service = ann.service || "notify.alexa_media";
+      const t = ann.targets || ann.target;
+      data.announce_targets = Array.isArray(t) ? t : t ? [t] : [];
+    }
+    if (this._mode === "room") {
+      const r = typeof c.room === "string" ? { area: c.room } : c.room;
+      const area = this._findAreaId(r.area || r.name);
+      return { ...data, ...r, area: area || r.area || "" };
+    }
+    return {
+      ...data,
+      title: c.title || "",
+      rooms: (c.rooms || []).map((x) => this._findAreaId(typeof x === "string" ? x : x.area || x.name) || (typeof x === "string" ? x : x.area)).filter(Boolean),
+      exclude: (c.exclude || []).map((x) => this._findAreaId(x) || x),
+      columns: c.columns || 1, sort: c.sort || "urgency",
+      summary: c.summary !== false, hero: c.hero !== false,
+      weather: c.weather || "", outdoor: c.outdoor || "", season: c.season || "",
+      include: c.include || [], hide: c.hide || [],
+    };
+  }
+
+  _findAreaId(key) {
+    if (!key || !this._hass || !this._hass.areas) return "";
+    const k = norm(key);
+    const a = Object.values(this._hass.areas).find((x) => norm(x.area_id) === k || norm(x.name) === k);
+    return a ? a.area_id : "";
+  }
+
+  _update() {
+    if (!this._config || !this._hass) return;
+    if (!this._form) {
+      this._form = document.createElement("ha-form");
+      this._form.computeLabel = (sch) => EDITOR_LABELS[sch.name] || sch.title || sch.name;
+      this._form.computeHelper = (sch) => EDITOR_HELP[sch.name] || "";
+      this._form.addEventListener("value-changed", (ev) => { ev.stopPropagation(); this._changed(ev.detail.value); });
+      this.appendChild(this._form);
+    }
+    this._form.hass = this._hass;
+    this._form.data = this._data();
+    this._form.schema = this._schema();
+  }
+
+  _clean(obj) {
+    const out = {};
+    Object.keys(obj).forEach((k) => {
+      const v = obj[k];
+      if (v === "" || v === undefined || v === null || (Array.isArray(v) && !v.length)) return;
+      out[k] = v;
+    });
+    return out;
+  }
+
+  _changed(v) {
+    const old = this._config;
+    let cfg = { type: old.type || "custom:raum-uebersicht-card" };
+    if (v.mode === "room") {
+      const prev = typeof old.room === "object" && old.room ? old.room : {};
+      const room = this._clean({
+        ...prev, area: v.area, name: v.name, icon: v.icon, temperature: v.temperature, humidity: v.humidity,
+        window: v.window, climate: v.climate, ventilation: v.ventilation, include: v.include, hide: v.hide,
+      });
+      delete room.announce;
+      if (!room.area) room.area = v.area || "";
+      cfg.room = room;
+      if (v.more_sensors) cfg.more_sensors = true;
+    } else {
+      // vorhandene Einzelüberschreibungen einzelner Räume bleiben erhalten
+      const oldRooms = Array.isArray(old.rooms) ? old.rooms : [];
+      const rooms = (v.rooms || []).map((id) => {
+        const hit = oldRooms.find((x) => typeof x === "object" && this._findAreaId(x.area || x.name) === id);
+        return hit || id;
+      });
+      cfg = { ...cfg, ...this._clean({
+        title: v.title, rooms, exclude: v.exclude, weather: v.weather, outdoor: v.outdoor, season: v.season, include: v.include, hide: v.hide,
+      }) };
+      if (v.columns && Number(v.columns) !== 1) cfg.columns = Number(v.columns);
+      if (v.sort && v.sort !== "urgency") cfg.sort = v.sort;
+      if (v.summary === false) cfg.summary = false;
+      if (v.hero === false) cfg.hero = false;
+      if (v.more_sensors) cfg.more_sensors = true;
+    }
+    const targets = Array.isArray(v.announce_targets) ? v.announce_targets : [];
+    if (targets.length) {
+      const ann = { service: v.announce_service || "notify.alexa_media", targets, type: "announce" };
+      if (v.mode === "room") cfg.room.announce = ann; else cfg.announce = ann;
+    }
+    if (v.mode !== this._mode) {
+      // Beim Wechsel der Ansicht mit sinnvollen Vorgaben starten
+      if (v.mode === "room") cfg = { type: cfg.type, room: { area: "" } };
+      else cfg = { type: cfg.type };
+    }
+    this._config = cfg;
+    this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: cfg }, bubbles: true, composed: true }));
+  }
+}
+
+if (!customElements.get("raum-uebersicht-card-editor")) customElements.define("raum-uebersicht-card-editor", RaumUebersichtCardEditor);
 if (!customElements.get("raum-uebersicht-card")) customElements.define("raum-uebersicht-card", RaumUebersichtCard);
 window.customCards = window.customCards || [];
 window.customCards.push({
   type: "raum-uebersicht-card",
   name: "Raumübersicht",
-  description: "Alle Räume auf einen Blick, mit Geräte-Popup je Raum (automatisch aus den Bereichen).",
+  description: "Alle Räume auf einen Blick oder eine komplette Raumseite, automatisch aus den Bereichen. Sensoren und Geräte lassen sich im Editor auswählen.",
+  preview: true,
 });
 console.info(`%c RAUM-UEBERSICHT %c ${RUC_VERSION} `, "background:#3b82f6;color:#fff;border-radius:3px 0 0 3px", "background:#e5e7eb;color:#111;border-radius:0 3px 3px 0");
