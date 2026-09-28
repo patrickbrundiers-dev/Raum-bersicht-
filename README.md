@@ -26,7 +26,8 @@ Die Karte liest Räume und Geräte selbst aus den **Bereichen (Areas)** von Home
 - Bei den Sensoren nur das Nötige: Fenster- und Türkontakte, Bewegung, Anwesenheit, Rauch, Wasser sowie CO₂ und Luftqualität. Temperatur und Feuchte stehen schon oben und im Verlauf
 - Technik wird nie angezeigt: Batterie, Spannung, Signalstärke, zweite Temperaturfühler der Heizkörper, Kindersicherung, Fenstererkennung der Thermostate und ähnliches
 - Licht und Schalter direkt umschaltbar, Tipp auf ein Gerät öffnet die Detailansicht
-- Button "Alles aus" schaltet alle eingeschalteten Lichter und Steckdosen des Raums aus
+- Buttons "Alles aus" und "Licht an" für alle Lichter des Raums
+- Fenster und Türen zeigen, seit wann sie offen oder geschlossen sind
 - Verlauf der letzten 7 Tage für Temperatur und Luftfeuchte
 - Energie: aktueller Verbrauch und Tagesverbrauch (aus Energiesensoren mit Langzeitstatistik)
 - Diagnose- und versteckte Entitäten werden ausgeblendet
@@ -90,7 +91,7 @@ rooms:
 | `weather` | Wetter-Entität für das Chip, Standard die erste `weather.*`-Entität |
 | `outdoor` | Außentemperatur-Sensor für das Chip "Draußen", zum Beispiel `sensor.aussentemperatur` |
 | `season` | Sensor für Sommer/Winter-Modus. Wird automatisch gefunden, wenn ein Sensor mit "modus" in der ID den Zustand Winter oder Sommer hat |
-| `all_off` | Welche Geräte "Alles aus" ausschaltet, Standard nur `[light]`. Mit `[light, switch]` kommen Steckdosen dazu, Kühlschrank, Gefrierschrank, Router, NAS, Server und Alarm bleiben aber immer an. `false` blendet den Button aus |
+| `all_off` | Welche Geräte "Alles aus" ausschaltet, Standard nur `[light]`. "Licht an" schaltet immer nur Lichter ein. Mit `[light, switch]` kommen Steckdosen dazu, Kühlschrank, Gefrierschrank, Router, NAS, Server und Alarm bleiben aber immer an. `false` blendet den Button aus |
 | `exclude` | Räume ausblenden, zum Beispiel `[Balkon]`. Sie zählen dann auch nicht bei "zu feucht" |
 | `show_unavailable` | `true` zeigt auch nicht erreichbare Geräte im Popup, Standard aus |
 | `media` | `always` zeigt Lautsprecher auch im Leerlauf, Standard nur bei Wiedergabe oder Pause |
@@ -100,6 +101,19 @@ rooms:
 ### Dringlichkeit
 
 Ein offenes Fenster zählt am meisten, danach Feuchte ab 70 %, dann Feuchte ab 60 % und zuletzt eine Lüftungsempfehlung. Roter Rand steht für Fenster offen oder Feuchte über 70 %, gelber Rand für erhöhte Feuchte oder Lüftungsempfehlung.
+
+### Raumseite statt Übersicht
+
+Für die Unterseite eines einzelnen Raums zeigt `room:` die Raumkarte und darunter alle Geräte, Fenster, Verlauf und Energie ohne Popup:
+
+```yaml
+type: custom:raum-uebersicht-card
+room:
+  area: wohnzimmer
+  window: binary_sensor.fenster_wohnzimmer   # optional, zum Beispiel eine Fenstergruppe
+```
+
+Unter `room` funktionieren dieselben Überschreibungen wie bei `rooms` (`temperature`, `humidity`, `window`, `climate`, `ventilation`, `name`, `icon`, `announce`). Angegebene Entitäten werden auch dann angezeigt, wenn sie keinem Bereich zugeordnet sind. Ein vollständiges Beispiel liegt in `examples/wohnzimmer.yaml`. Fenstergruppen ohne Geräteklasse werden am Namen erkannt (Fenster, Window, Tür, Door).
 
 ### Automatische Erkennung
 
@@ -118,4 +132,4 @@ In `examples/` liegen zwei YAML-Dashboards, die stattdessen Standardkarten sowie
 
 ## Status
 
-Version 2.4.0. Die Logik ist mit simulierten Home-Assistant-Daten geprüft, aber noch nicht in einer echten Installation getestet. Rückmeldungen und Screenshots helfen.
+Version 2.5.0. Die Logik ist mit simulierten Home-Assistant-Daten geprüft, aber noch nicht in einer echten Installation getestet. Rückmeldungen und Screenshots helfen.

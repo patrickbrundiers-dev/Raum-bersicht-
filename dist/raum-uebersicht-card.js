@@ -2,7 +2,7 @@
  * Zeigt alle Räume (Areas) als Karten und öffnet pro Raum ein Popup
  * mit allen Geräten, nach Kategorien sortiert. Keine Entity-IDs nötig.
  */
-const RUC_VERSION = "2.4.0";
+const RUC_VERSION = "2.5.0";
 
 const CATEGORIES = [
   { key: "climate", title: "Heizung und Klima", icon: "mdi:radiator", domains: ["climate", "water_heater"] },
@@ -22,6 +22,7 @@ const HIDE_RE = /(_linkquality|_last_seen|_identify|_restart|_uptime|_ip_address
 const DERIVED_RE = /(dew|taupunkt|frost|heat.?index|hitzeindex|humidex|simmer|perceived|wahrgenommen|absolut|feels|gef[üu]hl|comfort|komfort|thermal)/i;
 const DERIVED_PLATFORMS = ["thermal_comfort", "template", "derivative", "statistics", "min_max", "filter", "integration"];
 const TRV_RE = /(heizk[öo]rper|thermostat|trv|local_temperature|radiator)/i;
+const WINDOW_NAME_RE = /(fenster|window|t[üu]r\b|door)/i;
 const HIDE_NAME_RE = /(nicht st[öo]ren|do not disturb|kindersicherung|child lock)/i;
 // Diese Geräte schaltet "Alles aus" nie aus, auch nicht bei all_off: [light, switch]
 const KEEP_ON_RE = /(k[üu]hl|gefrier|fridge|freezer|router|modem|nas\b|server|alarm|wlan|switch_poe)/i;
@@ -117,7 +118,7 @@ class RaumUebersichtCard extends HTMLElement {
 
   _rooms() {
     const h = this._hass;
-    const cfgRooms = this._config.rooms;
+    const cfgRooms = this._config.room ? [this._config.room] : this._config.rooms;
     let list = [];
     if (Array.isArray(cfgRooms) && cfgRooms.length) {
       list = cfgRooms.map((r) => {
@@ -220,7 +221,9 @@ class RaumUebersichtCard extends HTMLElement {
     const order = ["window", "opening", "door", "garage_door"];
     const cands = ids.filter((id) => id.startsWith("binary_sensor.") && order.includes(this._dc(id)) && !HIDE_RE.test(id));
     cands.sort((a, b) => order.indexOf(this._dc(a)) - order.indexOf(this._dc(b)));
-    return cands[0] || null;
+    if (cands[0]) return cands[0];
+    // Gruppen ohne Geräteklasse, zum Beispiel binary_sensor.fenster_wohnzimmer
+    return ids.find((id) => id.startsWith("binary_sensor.") && WINDOW_NAME_RE.test(`${id} ${this._name(id)}`) && !HIDE_RE.test(id)) || null;
   }
 
   _pick(ids, domain, deviceClasses) {
@@ -231,6 +234,7 @@ class RaumUebersichtCard extends HTMLElement {
     const ids = this._entitiesInArea(area.area_id).filter((id) => this._visible(id));
     const h = this._hass;
     const has = (id) => id && h.states[id];
+    [cfg.window, cfg.temperature, cfg.humidity, cfg.climate, cfg.ventilation].filter(has).forEach((id) => { if (!ids.includes(id)) ids.push(id); });
     const temp = has(cfg.temperature) ? cfg.temperature : this._bestSensor(ids, ["temperature"], ["°C", "°F"]);
     const hum = has(cfg.humidity) ? cfg.humidity : this._bestSensor(ids, ["humidity"], ["%"]);
     const win = has(cfg.window) ? cfg.window : this._bestWindow(ids);
@@ -335,6 +339,8 @@ class RaumUebersichtCard extends HTMLElement {
         <div class="hbtns">${clim.state !== "unavailable" ? ob("", `data-action="heat" data-mode="on" data-entity="${esc(r.clim)}"`, "Heizung einschalten", "Heizen") : ""}</div></div>`;
     }
     const ventShow = vent && !["unknown", "unavailable"].includes(vent.state);
+    const vtxt = vent ? norm(vent.state) : "";
+    const ventLvl = /l(ü|ue)ften/.test(vtxt) && !/(kein|nicht|nein)/.test(vtxt) ? r.level || "warn" : "";
     return `
       <div class="room ${r.level}" role="button" tabindex="0" data-action="open" data-room="${esc(r.id)}">
         <div class="rh">
@@ -349,7 +355,7 @@ class RaumUebersichtCard extends HTMLElement {
         ${hum}
         ${hum && heat ? `<div class="dv"></div>` : ""}
         ${heat}
-        ${ventShow ? `<div class="vent ${r.level}"><ha-icon icon="mdi:weather-windy"></ha-icon><span class="vt">${esc(this._fmt(r.vent))}</span>${r.announce ? `<button class="ann" data-action="announce" data-room="${esc(r.id)}" aria-label="Ansagen"><ha-icon icon="${this._flash === r.id ? "mdi:check" : "mdi:bullhorn-outline"}"></ha-icon></button>` : ""}</div>` : ""}
+        ${ventShow ? `<div class="vent ${ventLvl}"><ha-icon icon="mdi:weather-windy"></ha-icon><span class="vt">${esc(this._fmt(r.vent))}</span>${r.announce ? `<button class="ann" data-action="announce" data-room="${esc(r.id)}" aria-label="Ansagen"><ha-icon icon="${this._flash === r.id ? "mdi:check" : "mdi:bullhorn-outline"}"></ha-icon></button>` : ""}</div>` : ""}
       </div>`;
   }
 
@@ -363,12 +369,12 @@ class RaumUebersichtCard extends HTMLElement {
     const act = toggle && !dis ? "toggle" : "info";
     const dcl = st.attributes.device_class;
     const flag = domain === "binary_sensor" && st.state === "on"
-      ? (["smoke", "moisture", "gas", "carbon_monoxide"].includes(dcl) ? "alert" : ["window", "door", "opening", "garage_door"].includes(dcl) ? "open" : "") : "";
+      ? (["smoke", "moisture", "gas", "carbon_monoxide"].includes(dcl) ? "alert" : ["window", "door", "opening", "garage_door"].includes(dcl) || (!dcl && WINDOW_NAME_RE.test(id)) ? "open" : "") : "";
     return `
       <div class="tile ${active ? "on" : ""} ${flag} ${dis ? "dis" : ""} ${domain === "climate" ? "wide" : ""}" role="button" tabindex="0" data-action="${act}" data-entity="${esc(id)}">
         <span class="tt"><span class="dic"><ha-icon icon="${esc(this._icon(id))}"></ha-icon></span>${act === "toggle" ? `<button class="ib" data-action="info" data-entity="${esc(id)}" aria-label="Details"><ha-icon icon="mdi:dots-horizontal"></ha-icon></button>` : ""}</span>
         <span class="dn">${esc(this._name(id))}</span>
-        <span class="ds">${esc(this._fmt(id))}</span>
+        <span class="ds">${esc(this._fmt(id))}${domain === "binary_sensor" && ["on", "off"].includes(st.state) && (dcl || WINDOW_NAME_RE.test(id)) && !["motion", "occupancy", "presence"].includes(dcl) ? `, seit ${this._since(id)}` : ""}</span>
       </div>`;
   }
 
@@ -613,7 +619,7 @@ class RaumUebersichtCard extends HTMLElement {
   _isEssential(id) {
     const domain = id.split(".")[0];
     if (domain === "sensor") return ESSENTIAL_SENSOR.includes(this._dc(id));
-    if (domain === "binary_sensor") return ESSENTIAL_BINARY.includes(this._dc(id));
+    if (domain === "binary_sensor") return ESSENTIAL_BINARY.includes(this._dc(id)) || (!this._dc(id) && WINDOW_NAME_RE.test(`${id} ${this._name(id)}`));
     return true;
   }
 
@@ -626,7 +632,11 @@ class RaumUebersichtCard extends HTMLElement {
     return act(a) - act(b) || this._name(a).localeCompare(this._name(b), "de");
   }
 
-  _popup(r) {
+  _lightsOffIds(r) {
+    return r.ids.filter((id) => id.startsWith("light.") && this._popupVisible(id) && this._hass.states[id].state === "off");
+  }
+
+  _popup(r, inline = false) {
     const more = [];
     const groups = CATEGORIES.map((c) => {
       const all = r.ids.filter((id) => this._popupVisible(id) && c.domains.includes(id.split(".")[0]));
@@ -639,6 +649,22 @@ class RaumUebersichtCard extends HTMLElement {
     const count = groups.reduce((n, g) => n + g.items.length, 0);
     const moreOpen = !!this._more[r.id];
     const offIds = this._allOffIds(r);
+    const onIds = this._lightsOffIds(r);
+    const qa = (offIds.length || onIds.length) ? `<div class="qa">
+      ${offIds.length ? `<button class="alloff" data-action="alloff" data-room="${esc(r.id)}"><ha-icon icon="mdi:power"></ha-icon>${this._flash === "off:" + r.id ? "Ausgeschaltet" : `Alles aus (${offIds.length})`}</button>` : ""}
+      ${onIds.length ? `<button class="alloff on" data-action="lightson" data-room="${esc(r.id)}"><ha-icon icon="mdi:lightbulb-on-outline"></ha-icon>${this._flash === "on:" + r.id ? "Eingeschaltet" : `Licht an (${onIds.length})`}</button>` : ""}
+    </div>` : "";
+    const body = `
+          ${inline ? "" : this._live(r)}
+          ${qa}
+          ${groups.length ? groups.map((g) => `
+            <div class="cat"><ha-icon icon="${g.c.icon}"></ha-icon>${g.c.title}</div>
+            <div class="tiles">${g.items.map((id) => this._deviceRow(id)).join("")}</div>`).join("") : `<p class="empty">Diesem Bereich sind noch keine Geräte zugeordnet.</p>`}
+          ${this._insights(r)}
+          ${more.length ? `
+            <button class="more" data-action="more" data-room="${esc(r.id)}"><ha-icon icon="${moreOpen ? "mdi:chevron-up" : "mdi:chevron-down"}"></ha-icon>${moreOpen ? "Weitere Sensoren ausblenden" : `Weitere Sensoren anzeigen (${more.length})`}</button>
+            ${moreOpen ? `<div class="tiles">${more.map((id) => this._deviceRow(id)).join("")}</div>` : ""}` : ""}`;
+    if (inline) return `<div class="sheet inline">${body}</div>`;
     return `
       <div class="overlay" data-action="close">
         <div class="sheet" role="dialog" aria-label="${esc(r.name)}">
@@ -648,15 +674,7 @@ class RaumUebersichtCard extends HTMLElement {
             <span class="ht"><span class="hn">${esc(r.name)}</span><span class="hs">${count} Geräte${more.length ? `, ${more.length} weitere Sensoren` : ""}${r.power != null ? `, ${this._fmtW(r.power)}` : ""}</span></span>
             <button class="x" data-action="close" aria-label="Schließen"><ha-icon icon="mdi:close"></ha-icon></button>
           </div>
-          ${this._live(r)}
-          ${offIds.length ? `<button class="alloff" data-action="alloff" data-room="${esc(r.id)}"><ha-icon icon="mdi:power"></ha-icon>${this._flash === "off:" + r.id ? "Ausgeschaltet" : `Alles aus (${offIds.length})`}</button>` : ""}
-          ${groups.length ? groups.map((g) => `
-            <div class="cat"><ha-icon icon="${g.c.icon}"></ha-icon>${g.c.title}</div>
-            <div class="tiles">${g.items.map((id) => this._deviceRow(id)).join("")}</div>`).join("") : `<p class="empty">Diesem Bereich sind noch keine Geräte zugeordnet.</p>`}
-          ${this._insights(r)}
-          ${more.length ? `
-            <button class="more" data-action="more" data-room="${esc(r.id)}"><ha-icon icon="${moreOpen ? "mdi:chevron-up" : "mdi:chevron-down"}"></ha-icon>${moreOpen ? "Weitere Sensoren ausblenden" : `Weitere Sensoren anzeigen (${more.length})`}</button>
-            ${moreOpen ? `<div class="tiles">${more.map((id) => this._deviceRow(id)).join("")}</div>` : ""}` : ""}
+          ${body}
         </div>
       </div>`;
   }
@@ -664,11 +682,17 @@ class RaumUebersichtCard extends HTMLElement {
   _render() {
     if (!this._hass || !this._config) return;
     const rooms = this._rooms();
-    const open = rooms.find((r) => r.id === this._openRoom);
+    const roomMode = !!this._config.room;
+    const open = roomMode ? rooms[0] : rooms.find((r) => r.id === this._openRoom);
     const title = this._config.title;
     if (open) this._loadHistory(open);
     this._loadSpark(rooms.map((r) => r.temp).filter(Boolean));
-    const html = `
+    const html = roomMode ? `
+      <style>${RUC_STYLE}</style>
+      <ha-card>
+        ${title ? `<div class="title">${esc(title)}</div>` : ""}
+        ${open ? `<div class="grid" style="--cols:1">${this._roomCard(open, 0)}</div>${this._popup(open, true)}` : `<p class="empty">Bereich nicht gefunden. Prüfe den Namen unter room.</p>`}
+      </ha-card>` : `
       <style>${RUC_STYLE}</style>
       <ha-card>
         ${title ? `<div class="title">${esc(title)}</div>` : ""}
@@ -730,6 +754,7 @@ class RaumUebersichtCard extends HTMLElement {
       if (el.classList.contains("overlay") && e.target !== el) return;
       this._openRoom = null; this._sheetScroll = 0; this._sig = ""; this._render();
     } else if (action === "open") {
+      if (this._config.room) return;
       this._openRoom = el.dataset.room; this._sheetScroll = 0; this._sig = ""; this._render();
     } else if (action === "toggle") {
       e.stopPropagation();
@@ -737,6 +762,12 @@ class RaumUebersichtCard extends HTMLElement {
     } else if (action === "heat") {
       e.stopPropagation();
       this._heat(el.dataset.entity, el.dataset.mode === "on");
+    } else if (action === "lightson") {
+      const r = this._rooms().find((x) => x.id === el.dataset.room);
+      if (r) this._hass.callService("light", "turn_on", { entity_id: this._lightsOffIds(r) });
+      this._flash = "on:" + el.dataset.room;
+      this._sig = ""; this._render();
+      setTimeout(() => { this._flash = null; this._sig = ""; this._render(); }, 2000);
     } else if (action === "alloff") {
       this._allOff(el.dataset.room);
       this._flash = "off:" + el.dataset.room;
@@ -877,6 +908,11 @@ const RUC_STYLE = `
 
   .alloff { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; margin: 14px 0 0; padding: 12px; border-radius: 16px; border: none; cursor: pointer;
     font-size: 14px; font-weight: 500; --mdc-icon-size: 18px; background: color-mix(in srgb, var(--primary-color) 16%, transparent); color: var(--primary-color); }
+  .qa { display: flex; gap: 8px; margin-top: 14px; }
+  .qa .alloff { flex: 1; margin: 0; width: auto; }
+  .alloff.on { background: color-mix(in srgb, var(--state-light-active-color, #ffc107) 20%, transparent); color: var(--state-light-active-color, #ffc107); }
+  .sheet.inline { max-height: none; overflow: visible; animation: none; margin-top: 12px; padding: 4px 18px 18px; border-radius: 22px;
+    border: 1px solid var(--divider-color); background: var(--ha-card-background, var(--card-background-color)); }
   .kpis { display: flex; gap: 8px; }
   .kpi { flex: 1; display: flex; flex-direction: column; padding: 12px 14px; border-radius: 18px; background: var(--secondary-background-color); }
   .kv.ok { color: var(--success-color, #66bb6a); }

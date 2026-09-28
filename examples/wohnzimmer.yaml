@@ -1,0 +1,29 @@
+# Beispiel: Raumseite Wohnzimmer mit der Raumübersicht-Karte
+# Ersetzt die Abschnitte "Klima" und "Lampen & Fenster". Multimedia bleibt wie bisher.
+type: sections
+title: Wohnzimmer
+path: wohnzimmer
+icon: mdi:television
+theme: Frosted Glass Lite
+max_columns: 2
+sections:
+  - type: grid
+    cards:
+      - type: custom:raum-uebersicht-card
+        room:
+          area: wohnzimmer
+          # Nur nötig, wenn die Fenstergruppe nicht dem Bereich zugeordnet ist:
+          window: binary_sensor.fenster_wohnzimmer
+          # Optional, wird sonst automatisch gefunden:
+          # climate: climate.wohnzimmer_bt
+  - type: grid
+    cards:
+      - type: heading
+        heading: Multimedia
+        heading_style: title
+      - type: custom:mediocre-media-player-card
+        entity_id: media_player.wohnzimmer
+      - type: custom:mediocre-media-player-card
+        entity_id: media_player.wohnzimmer_tv
+      - type: custom:mediocre-media-player-card
+        entity_id: media_player.wohnzimmer_google_tv
