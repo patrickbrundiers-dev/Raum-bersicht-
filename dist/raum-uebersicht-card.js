@@ -2,7 +2,7 @@
  * Zeigt alle Räume (Areas) als Karten und öffnet pro Raum ein Popup
  * mit allen Geräten, nach Kategorien sortiert. Keine Entity-IDs nötig.
  */
-const RUC_VERSION = "3.1.0";
+const RUC_VERSION = "3.1.1";
 
 const CATEGORIES = [
   { key: "climate", title: "Heizung und Klima", icon: "mdi:radiator", domains: ["climate", "water_heater"] },
@@ -1181,6 +1181,7 @@ const EDITOR_HELP = {
 class RaumUebersichtCardEditor extends HTMLElement {
   setConfig(config) {
     this._config = config || {};
+    if (this._own && JSON.stringify(this._own) === JSON.stringify(this._config)) return;
     this._update();
   }
 
@@ -1288,9 +1289,18 @@ class RaumUebersichtCardEditor extends HTMLElement {
       this._form.addEventListener("value-changed", (ev) => { ev.stopPropagation(); this._changed(ev.detail.value); });
       this.appendChild(this._form);
     }
-    this._form.hass = this._hass;
-    this._form.data = this._data();
-    this._form.schema = this._schema();
+    if (this._form.hass !== this._hass) this._form.hass = this._hass;
+    const mode = this._mode;
+    if (this._schemaMode !== mode) {
+      this._schemaMode = mode;
+      this._form.schema = this._schema();
+    }
+    const data = this._data();
+    const js = JSON.stringify(data);
+    if (js !== this._dataJs) {
+      this._dataJs = js;
+      this._form.data = data;
+    }
   }
 
   _clean(obj) {
@@ -1342,7 +1352,9 @@ class RaumUebersichtCardEditor extends HTMLElement {
       if (v.mode === "room") cfg = { type: cfg.type, room: { area: "" } };
       else cfg = { type: cfg.type };
     }
+    this._own = cfg;
     this._config = cfg;
+    this._update();
     this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: cfg }, bubbles: true, composed: true }));
   }
 }
