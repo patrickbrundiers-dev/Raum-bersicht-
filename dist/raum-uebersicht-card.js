@@ -2,7 +2,7 @@
  * Zeigt alle Räume (Areas) als Karten und öffnet pro Raum ein Popup
  * mit allen Geräten, nach Kategorien sortiert. Keine Entity-IDs nötig.
  */
-const RUC_VERSION = "3.2.0";
+const RUC_VERSION = "3.3.0";
 
 const CATEGORIES = [
   { key: "climate", title: "Heizung und Klima", icon: "mdi:radiator", domains: ["climate", "water_heater"] },
@@ -90,6 +90,18 @@ class RaumUebersichtCard extends HTMLElement {
     });
   }
 
+  connectedCallback() {
+    // Zeitangaben wie "seit 5 Min" einmal pro Minute auffrischen
+    this._tick = setInterval(() => { if (this._hass && !this._drag) this._render(); }, 60000);
+    if (this._hass && this._config) this._queueRender();
+  }
+
+  disconnectedCallback() {
+    clearInterval(this._tick);
+    clearTimeout(this._rt);
+    this._rt = null;
+  }
+
   static getStubConfig() { return { type: "custom:raum-uebersicht-card" }; }
 
   static getConfigElement() { return document.createElement("raum-uebersicht-card-editor"); }
@@ -103,8 +115,28 @@ class RaumUebersichtCard extends HTMLElement {
   getCardSize() { return 6; }
 
   set hass(hass) {
+    const prev = this._hass;
     this._hass = hass;
-    this._render();
+    if (prev && this._rel && prev.states !== hass.states) {
+      const regs = prev.entities === hass.entities && prev.devices === hass.devices && prev.areas === hass.areas;
+      let changed = !regs;
+      if (!changed) {
+        for (const id of this._rel) {
+          if (prev.states[id] !== hass.states[id]) { changed = true; break; }
+        }
+      }
+      if (!changed) return;
+    } else if (prev && prev.states === hass.states && this._rel) return;
+    this._queueRender();
+  }
+
+  _queueRender() {
+    // höchstens etwa vier Zeichnungen pro Sekunde, damit die Karte ruhig bleibt
+    const now = Date.now();
+    const wait = Math.max(0, 250 - (now - (this._lastRender || 0)));
+    if (!wait) { this._render(); return; }
+    if (this._rt) return;
+    this._rt = setTimeout(() => { this._rt = null; this._render(); }, wait);
   }
 
   /* ---------- Raum- und Geräteauflösung ---------- */
@@ -125,8 +157,19 @@ class RaumUebersichtCard extends HTMLElement {
   }
 
   _entitiesInArea(areaId) {
+    // Bereichsindex wird nur neu gebaut, wenn sich die Registries ändern
     const h = this._hass;
-    return Object.keys(h.states).filter((id) => this._areaOf(id) === areaId);
+    const idx = this._areaIdx;
+    const n = Object.keys(h.states).length;
+    if (!idx || idx.e !== h.entities || idx.d !== h.devices || idx.n !== n) {
+      const map = {};
+      Object.keys(h.states).forEach((id) => {
+        const a = this._areaOf(id);
+        if (a) (map[a] || (map[a] = [])).push(id);
+      });
+      this._areaIdx = { e: h.entities, d: h.devices, n, map };
+    }
+    return this._areaIdx.map[areaId] || [];
   }
 
   _visible(id) {
@@ -878,6 +921,18 @@ class RaumUebersichtCard extends HTMLElement {
         </div>
       </ha-card>
       ${open ? this._popup(open) : ""}`;
+    this._lastRender = Date.now();
+    const rel = new Set();
+    rooms.forEach((r) => {
+      (r.ids || []).forEach((id) => rel.add(id));
+      [r.temp, r.hum, r.win, r.clim, r.vent].forEach((id) => { if (id) rel.add(id); });
+      const w = r.win && this._hass.states[r.win];
+      if (w && Array.isArray(w.attributes.entity_id)) w.attributes.entity_id.forEach((id) => rel.add(id));
+    });
+    const c = this._config;
+    [c.weather, c.outdoor, c.season].forEach((id) => { if (id) rel.add(id); });
+    Object.keys(this._hass.states).forEach((id) => { if (id.startsWith("weather.") || /^(sensor|select)\./.test(id) && /(modus|mode|season|jahreszeit)/.test(id)) rel.add(id); });
+    this._rel = rel;
     if (html === this._sig) return;
     const sheet = this.shadowRoot.querySelector(".sheet");
     if (sheet) this._sheetScroll = sheet.scrollTop;

@@ -124,7 +124,7 @@ thermostat_options:              # wird an die Thermostat-Karte durchgereicht
   show_secondary: false
 ```
 
-Änderungen an Sensoren aktualisieren nur die betroffenen Stellen, die Karte flackert dabei nicht mehr.
+Die Karte zeichnet nur neu, wenn sich Entitäten des Raums ändern (höchstens viermal pro Sekunde). Änderungen an Sensoren aktualisieren nur die betroffenen Stellen, die Karte flackert dabei nicht mehr.
 
 ### Dringlichkeit
 
@@ -166,4 +166,4 @@ In `examples/` liegen zwei YAML-Dashboards, die stattdessen Standardkarten sowie
 
 ## Status
 
-Version 3.2.0 (mit visuellem Editor). Der Editor nutzt die eingebauten Formularfelder von Home Assistant und ist bisher nur mit einer Attrappe getestet. Die Logik ist mit simulierten Home-Assistant-Daten geprüft, aber noch nicht in einer echten Installation getestet. Rückmeldungen und Screenshots helfen.
+Version 3.3.0 (mit visuellem Editor). Der Editor nutzt die eingebauten Formularfelder von Home Assistant und ist bisher nur mit einer Attrappe getestet. Die Logik ist mit simulierten Home-Assistant-Daten geprüft, aber noch nicht in einer echten Installation getestet. Rückmeldungen und Screenshots helfen.
