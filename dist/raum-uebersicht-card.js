@@ -2,7 +2,7 @@
  * Zeigt alle Räume (Areas) als Karten und öffnet pro Raum ein Popup
  * mit allen Geräten, nach Kategorien sortiert. Keine Entity-IDs nötig.
  */
-const RUC_VERSION = "1.2.0";
+const RUC_VERSION = "1.3.0";
 
 const CATEGORIES = [
   { key: "climate", title: "Heizung und Klima", icon: "mdi:radiator", domains: ["climate", "water_heater"] },
@@ -139,6 +139,17 @@ class RaumUebersichtCard extends HTMLElement {
     r.level = level;
   }
 
+  _isBetterThermostat(id) {
+    const reg = this._hass.entities && this._hass.entities[id];
+    if (reg && reg.platform) return reg.platform === "better_thermostat";
+    const a = (this._hass.states[id] || {}).attributes || {};
+    return "calibration_mode" in a || "saved_temperature" in a || "window_open" in a;
+  }
+
+  _preferredClimate(ids) {
+    return ids.find((id) => this._isBetterThermostat(id)) || ids[0] || null;
+  }
+
   _dc(id) { const s = this._hass.states[id]; return s ? s.attributes.device_class : undefined; }
 
   _pick(ids, domain, deviceClasses) {
@@ -152,12 +163,15 @@ class RaumUebersichtCard extends HTMLElement {
     const temp = has(cfg.temperature) ? cfg.temperature : this._pick(ids, "sensor", ["temperature"]);
     const hum = has(cfg.humidity) ? cfg.humidity : this._pick(ids, "sensor", ["humidity"]);
     const win = has(cfg.window) ? cfg.window : this._pick(ids, "binary_sensor", ["window", "door", "opening", "garage_door"]);
-    const clim = has(cfg.climate) ? cfg.climate : this._pick(ids, "climate");
+    const climates = ids.filter((id) => id.startsWith("climate."));
+    const clim = has(cfg.climate) ? cfg.climate : this._preferredClimate(climates);
     const vent = has(cfg.ventilation) ? cfg.ventilation : ids.find((id) => id.startsWith("sensor.") && id.endsWith("_empfehlung")) || null;
     const ann = cfg.announce || this._config.announce;
     const room = {
       id: area.area_id, name: cfg.name || area.name, icon: cfg.icon || area.icon || "mdi:door",
-      ids, temp, hum, win, clim, vent,
+      // pro Raum nur ein Thermostat (Better Thermostat), keine Einzel-TRVs oder Gruppen
+      ids: ids.filter((id) => !id.startsWith("climate.") || id === clim),
+      temp, hum, win, clim, vent,
       announce: vent && ann && (ann.targets || ann.target) ? ann : null,
     };
     this._urgency(room);

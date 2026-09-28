@@ -82,7 +82,7 @@ Ein offenes Fenster zählt am meisten, danach Feuchte ab 70 %, dann Feuchte ab 6
 | --- | --- |
 | Temperatur, Feuchte | Sensor mit Geräteklasse `temperature` bzw. `humidity` im Bereich |
 | Fenster | Binärsensor mit Geräteklasse Fenster, Tür oder Öffnung |
-| Heizung | erste `climate`-Entität im Bereich |
+| Heizung | das Better Thermostat des Raums. Weitere Thermostate, Gruppen oder Einzelheizkörper im selben Bereich werden nicht angezeigt. Gibt es kein Better Thermostat, wird die erste `climate`-Entität genommen |
 | Lüften | Sensor im Bereich, dessen ID auf `_empfehlung` endet |
 
 Voraussetzung ist, dass Geräte einem Bereich zugeordnet sind, entweder das Gerät selbst oder die einzelne Entität.
@@ -93,4 +93,4 @@ In `examples/` liegen zwei YAML-Dashboards, die stattdessen Standardkarten sowie
 
 ## Status
 
-Version 1.2.0. Die Logik ist mit simulierten Home-Assistant-Daten geprüft, aber noch nicht in einer echten Installation getestet. Rückmeldungen und Screenshots helfen.
+Version 1.3.0. Die Logik ist mit simulierten Home-Assistant-Daten geprüft, aber noch nicht in einer echten Installation getestet. Rückmeldungen und Screenshots helfen.
