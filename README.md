@@ -83,7 +83,10 @@ rooms:
 | `hide` | Liste von Text-Teilen. Entitäten, deren ID einen davon enthält, verschwinden aus dem Popup und bei "Alles aus" |
 | `rooms` | Auswahl der Räume, Standard alle passenden Bereiche |
 | `summary` | `false` blendet die Zusammenfassung oben aus |
-| `all_off` | Welche Geräte "Alles aus" ausschaltet, Standard `[light, switch]`. `false` blendet den Button aus |
+| `all_off` | Welche Geräte "Alles aus" ausschaltet, Standard nur `[light]`. Mit `[light, switch]` kommen Steckdosen dazu, Kühlschrank, Gefrierschrank, Router, NAS, Server und Alarm bleiben aber immer an. `false` blendet den Button aus |
+| `exclude` | Räume ausblenden, zum Beispiel `[Balkon]`. Sie zählen dann auch nicht bei "zu feucht" |
+| `show_unavailable` | `true` zeigt auch nicht erreichbare Geräte im Popup, Standard aus |
+| `media` | `always` zeigt Lautsprecher auch im Leerlauf, Standard nur bei Wiedergabe oder Pause |
 | `sort` | `urgency` (Dringendes zuerst), `name` (alphabetisch) oder `config` (Reihenfolge aus `rooms`) |
 | `announce` | Alexa-Ansage, auch pro Raum in `rooms` setzbar. Der Button erscheint nur, wenn ein Raum eine Lüftungsempfehlung hat. Gesprochen wird "Raumname. Empfehlung" |
 
@@ -95,8 +98,8 @@ Ein offenes Fenster zählt am meisten, danach Feuchte ab 70 %, dann Feuchte ab 6
 
 | Anzeige | Gefunden über |
 | --- | --- |
-| Temperatur, Feuchte | Sensor mit Geräteklasse `temperature` bzw. `humidity` im Bereich |
-| Fenster | Binärsensor mit Geräteklasse Fenster, Tür oder Öffnung |
+| Temperatur, Feuchte | Sensor mit Geräteklasse `temperature` bzw. `humidity` im Bereich. Abgeleitete Werte wie Taupunkt, Frostpunkt, Hitzeindex, Humidex, Simmer-Index und absolute Feuchte werden übersprungen, ebenso Sensoren der Integration Thermal Comfort. Heizkörper-Fühler nur als letzte Wahl |
+| Fenster | Binärsensor mit Geräteklasse Fenster, Öffnung oder Tür. Fenstererkennung der Thermostate wird ignoriert |
 | Heizung | das Better Thermostat des Raums. Weitere Thermostate, Gruppen oder Einzelheizkörper im selben Bereich werden nicht angezeigt. Gibt es kein Better Thermostat, wird die erste `climate`-Entität genommen |
 | Lüften | Sensor im Bereich, dessen ID auf `_empfehlung` endet |
 
@@ -108,4 +111,4 @@ In `examples/` liegen zwei YAML-Dashboards, die stattdessen Standardkarten sowie
 
 ## Status
 
-Version 2.2.0. Die Logik ist mit simulierten Home-Assistant-Daten geprüft, aber noch nicht in einer echten Installation getestet. Rückmeldungen und Screenshots helfen.
+Version 2.3.0. Die Logik ist mit simulierten Home-Assistant-Daten geprüft, aber noch nicht in einer echten Installation getestet. Rückmeldungen und Screenshots helfen.
