@@ -13,7 +13,10 @@ Die Karte liest Räume und Geräte selbst aus den **Bereichen (Areas)** von Home
 - Sortierung nach Dringlichkeit: Räume mit offenem Fenster, hoher Feuchte oder Lüftungsempfehlung stehen oben und bekommen einen farbigen Rand
 
 **Popup pro Raum**
-- Heizung und Klima, Licht, Steckdosen und Schalter, Rollos, Medien, Sensoren, Kontakte
+- Sortiert nach täglicher Nutzung: Heizung, Licht, Rollos, Steckdosen, Medien, Fenster und Bewegung, Raumklima
+- Eingeschaltete Geräte stehen in jeder Kategorie oben
+- Bei den Sensoren sind nur die wichtigen sofort sichtbar: Temperatur, Luftfeuchte, CO₂, Leistung, Fenster, Tür, Bewegung und Anwesenheit
+- Alles andere (Batterie, Helligkeit, Signalstärke und so weiter) steckt hinter "Weitere Sensoren anzeigen"
 - Licht und Schalter direkt umschaltbar, Tipp auf ein Gerät öffnet die Detailansicht
 - Diagnose- und versteckte Entitäten werden ausgeblendet
 
@@ -90,4 +93,4 @@ In `examples/` liegen zwei YAML-Dashboards, die stattdessen Standardkarten sowie
 
 ## Status
 
-Version 1.1.0. Die Logik ist mit simulierten Home-Assistant-Daten geprüft, aber noch nicht in einer echten Installation getestet. Rückmeldungen und Screenshots helfen.
+Version 1.2.0. Die Logik ist mit simulierten Home-Assistant-Daten geprüft, aber noch nicht in einer echten Installation getestet. Rückmeldungen und Screenshots helfen.

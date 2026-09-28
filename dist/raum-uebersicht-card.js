@@ -2,17 +2,20 @@
  * Zeigt alle Räume (Areas) als Karten und öffnet pro Raum ein Popup
  * mit allen Geräten, nach Kategorien sortiert. Keine Entity-IDs nötig.
  */
-const RUC_VERSION = "1.1.0";
+const RUC_VERSION = "1.2.0";
 
 const CATEGORIES = [
   { key: "climate", title: "Heizung und Klima", icon: "mdi:radiator", domains: ["climate", "water_heater"] },
   { key: "light", title: "Licht", icon: "mdi:lightbulb-outline", domains: ["light"] },
-  { key: "switch", title: "Steckdosen und Schalter", icon: "mdi:power-socket-eu", domains: ["switch", "input_boolean", "fan", "humidifier"] },
   { key: "cover", title: "Rollos und Fenster", icon: "mdi:blinds", domains: ["cover"] },
+  { key: "switch", title: "Steckdosen und Schalter", icon: "mdi:power-socket-eu", domains: ["switch", "input_boolean", "fan", "humidifier"] },
   { key: "media", title: "Medien", icon: "mdi:speaker", domains: ["media_player"] },
-  { key: "sensor", title: "Sensoren", icon: "mdi:gauge", domains: ["sensor"] },
-  { key: "binary", title: "Kontakte und Bewegung", icon: "mdi:door", domains: ["binary_sensor"] },
+  { key: "binary", title: "Fenster und Bewegung", icon: "mdi:door", domains: ["binary_sensor"] },
+  { key: "sensor", title: "Raumklima", icon: "mdi:gauge", domains: ["sensor"] },
 ];
+// Was im Popup sofort sichtbar ist, alles andere steckt unter "Weitere Sensoren"
+const ESSENTIAL_SENSOR = ["temperature", "humidity", "carbon_dioxide", "co2", "power"];
+const ESSENTIAL_BINARY = ["window", "door", "opening", "garage_door", "motion", "occupancy", "presence"];
 const TOGGLE_DOMAINS = ["light", "switch", "input_boolean", "fan", "humidifier"];
 const DOMAIN_ICONS = {
   climate: "mdi:thermostat", light: "mdi:lightbulb", switch: "mdi:power-socket-eu", input_boolean: "mdi:toggle-switch",
@@ -33,6 +36,7 @@ class RaumUebersichtCard extends HTMLElement {
     this._sig = "";
     this._pend = {};
     this._flash = null;
+    this._more = {};
     this.shadowRoot.addEventListener("click", (e) => this._onClick(e));
     this.shadowRoot.addEventListener("keydown", (e) => {
       if ((e.key === "Enter" || e.key === " ") && e.target && e.target.dataset && e.target.dataset.action === "open") {
@@ -245,25 +249,54 @@ class RaumUebersichtCard extends HTMLElement {
       </div>`;
   }
 
+  _rank(id, list) {
+    const i = list.indexOf(this._dc(id));
+    return i < 0 ? 99 : i;
+  }
+
+  _isEssential(id) {
+    const domain = id.split(".")[0];
+    if (domain === "sensor") return ESSENTIAL_SENSOR.includes(this._dc(id));
+    if (domain === "binary_sensor") return ESSENTIAL_BINARY.includes(this._dc(id));
+    return true;
+  }
+
+  _byUse(a, b, list) {
+    const act = (id) => (OFF_STATES.includes(this._hass.states[id].state) ? 1 : 0);
+    const dom = a.split(".")[0];
+    if (dom === "sensor" || dom === "binary_sensor") {
+      return this._rank(a, list) - this._rank(b, list) || this._name(a).localeCompare(this._name(b), "de");
+    }
+    return act(a) - act(b) || this._name(a).localeCompare(this._name(b), "de");
+  }
+
   _popup(r) {
+    const more = [];
     const groups = CATEGORIES.map((c) => {
-      const items = r.ids.filter((id) => c.domains.includes(id.split(".")[0]))
-        .sort((a, b) => this._name(a).localeCompare(this._name(b), "de"));
+      const all = r.ids.filter((id) => c.domains.includes(id.split(".")[0]));
+      const list = c.key === "binary" ? ESSENTIAL_BINARY : ESSENTIAL_SENSOR;
+      const items = all.filter((id) => this._isEssential(id)).sort((x, y) => this._byUse(x, y, list));
+      all.filter((id) => !this._isEssential(id)).forEach((id) => more.push(id));
       return { c, items };
     }).filter((g) => g.items.length);
+    more.sort((x, y) => this._name(x).localeCompare(this._name(y), "de"));
     const count = groups.reduce((n, g) => n + g.items.length, 0);
+    const moreOpen = !!this._more[r.id];
     return `
       <div class="overlay" data-action="close">
         <div class="sheet" role="dialog" aria-label="${esc(r.name)}">
           <div class="grab"></div>
           <div class="head">
             <span class="hic"><ha-icon icon="${esc(r.icon)}"></ha-icon></span>
-            <span class="ht"><span class="hn">${esc(r.name)}</span><span class="hs">${count} Geräte, ${groups.length} Kategorien</span></span>
+            <span class="ht"><span class="hn">${esc(r.name)}</span><span class="hs">${count} Geräte${more.length ? `, ${more.length} weitere Sensoren` : ""}</span></span>
             <button class="x" data-action="close" aria-label="Schließen"><ha-icon icon="mdi:close"></ha-icon></button>
           </div>
           ${groups.length ? groups.map((g) => `
             <div class="cat"><ha-icon icon="${g.c.icon}"></ha-icon>${g.c.title}</div>
             ${g.items.map((id) => this._deviceRow(id)).join("")}`).join("") : `<p class="empty">Diesem Bereich sind noch keine Geräte zugeordnet.</p>`}
+          ${more.length ? `
+            <button class="more" data-action="more" data-room="${esc(r.id)}"><ha-icon icon="${moreOpen ? "mdi:chevron-up" : "mdi:chevron-down"}"></ha-icon>${moreOpen ? "Weitere Sensoren ausblenden" : `Weitere Sensoren anzeigen (${more.length})`}</button>
+            ${moreOpen ? more.map((id) => this._deviceRow(id)).join("") : ""}` : ""}
         </div>
       </div>`;
   }
@@ -338,6 +371,10 @@ class RaumUebersichtCard extends HTMLElement {
     } else if (action === "toggle") {
       e.stopPropagation();
       this._hass.callService("homeassistant", "toggle", { entity_id: el.dataset.entity });
+    } else if (action === "more") {
+      this._more[el.dataset.room] = !this._more[el.dataset.room];
+      this._sig = "";
+      this._render();
     } else if (action === "step") {
       e.stopPropagation();
       this._step(el.dataset.entity, Number(el.dataset.dir));
@@ -393,6 +430,9 @@ const RUC_STYLE = `
   .hn { font-size: 20px; font-weight: 500; color: var(--primary-text-color); }
   .hs { font-size: 12px; color: var(--secondary-text-color); }
   .x { border: none; background: none; cursor: pointer; color: var(--secondary-text-color); padding: 6px; --mdc-icon-size: 22px; }
+  .more { display: flex; align-items: center; justify-content: center; gap: 4px; width: 100%; margin: 12px 0 8px; padding: 10px;
+    border-radius: 14px; border: 1px dashed var(--divider-color); background: none; cursor: pointer; font-size: 13px;
+    color: var(--secondary-text-color); --mdc-icon-size: 18px; }
   .cat { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--secondary-text-color); margin: 16px 0 6px; --mdc-icon-size: 16px; }
   .dev { display: flex; align-items: center; gap: 12px; padding: 10px 12px; margin-bottom: 6px; border-radius: 14px; cursor: pointer;
     background: var(--secondary-background-color); }
