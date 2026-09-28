@@ -8,8 +8,9 @@ Die Karte liest Räume und Geräte selbst aus den **Bereichen (Areas)** von Home
 
 **Raumkarte**
 - Temperatur, Luftfeuchte (grün, gelb, rot als Schimmel-Ampel) und Fensterstatus mit Dauer
-- Heizung mit Solltemperatur
-- Lüftungsempfehlung von Smart Ventilation, falls vorhanden
+- Heizung mit Solltemperatur und Plus/Minus-Tasten direkt auf der Karte
+- Lüftungsempfehlung von Smart Ventilation, falls vorhanden, mit optionalem Ansagen-Button für Alexa
+- Sortierung nach Dringlichkeit: Räume mit offenem Fenster, hoher Feuchte oder Lüftungsempfehlung stehen oben und bekommen einen farbigen Rand
 
 **Popup pro Raum**
 - Heizung und Klima, Licht, Steckdosen und Schalter, Rollos, Medien, Sensoren, Kontakte
@@ -41,6 +42,12 @@ Damit erscheinen alle Bereiche, die einen Temperatursensor oder ein Thermostat h
 type: custom:raum-uebersicht-card
 title: Räume
 columns: 2
+sort: urgency               # urgency (Standard), name oder config
+announce:                   # optional: Lüftungsempfehlung per Alexa ansagen
+  service: notify.alexa_media
+  targets:
+    - media_player.echo_wohnzimmer
+  type: announce
 rooms:
   - Schlafzimmer            # Kurzform: Name oder ID des Bereichs
   - area: Wohnzimmer
@@ -58,7 +65,13 @@ rooms:
 | --- | --- |
 | `title` | Überschrift über den Karten |
 | `columns` | Karten pro Zeile, Standard 2 |
-| `rooms` | Reihenfolge und Auswahl der Räume, Standard alle passenden Bereiche |
+| `rooms` | Auswahl der Räume, Standard alle passenden Bereiche |
+| `sort` | `urgency` (Dringendes zuerst), `name` (alphabetisch) oder `config` (Reihenfolge aus `rooms`) |
+| `announce` | Alexa-Ansage, auch pro Raum in `rooms` setzbar. Der Button erscheint nur, wenn ein Raum eine Lüftungsempfehlung hat. Gesprochen wird "Raumname. Empfehlung" |
+
+### Dringlichkeit
+
+Ein offenes Fenster zählt am meisten, danach Feuchte ab 70 %, dann Feuchte ab 60 % und zuletzt eine Lüftungsempfehlung. Roter Rand steht für Fenster offen oder Feuchte über 70 %, gelber Rand für erhöhte Feuchte oder Lüftungsempfehlung.
 
 ### Automatische Erkennung
 
@@ -77,4 +90,4 @@ In `examples/` liegen zwei YAML-Dashboards, die stattdessen Standardkarten sowie
 
 ## Status
 
-Version 1.0.0. Die Logik ist mit simulierten Home-Assistant-Daten geprüft, aber noch nicht in einer echten Installation getestet. Rückmeldungen und Screenshots helfen.
+Version 1.1.0. Die Logik ist mit simulierten Home-Assistant-Daten geprüft, aber noch nicht in einer echten Installation getestet. Rückmeldungen und Screenshots helfen.

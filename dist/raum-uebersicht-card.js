@@ -2,7 +2,7 @@
  * Zeigt alle Räume (Areas) als Karten und öffnet pro Raum ein Popup
  * mit allen Geräten, nach Kategorien sortiert. Keine Entity-IDs nötig.
  */
-const RUC_VERSION = "1.0.0";
+const RUC_VERSION = "1.1.0";
 
 const CATEGORIES = [
   { key: "climate", title: "Heizung und Klima", icon: "mdi:radiator", domains: ["climate", "water_heater"] },
@@ -31,13 +31,21 @@ class RaumUebersichtCard extends HTMLElement {
     this._openRoom = null;
     this._sheetScroll = 0;
     this._sig = "";
+    this._pend = {};
+    this._flash = null;
     this.shadowRoot.addEventListener("click", (e) => this._onClick(e));
+    this.shadowRoot.addEventListener("keydown", (e) => {
+      if ((e.key === "Enter" || e.key === " ") && e.target && e.target.dataset && e.target.dataset.action === "open") {
+        e.preventDefault();
+        this._onClick(e);
+      }
+    });
   }
 
   static getStubConfig() { return { type: "custom:raum-uebersicht-card" }; }
 
   setConfig(config) {
-    this._config = { columns: 2, ...config };
+    this._config = { columns: 2, sort: "urgency", ...config };
     this._sig = "";
     if (this._hass) this._render();
   }
@@ -95,7 +103,36 @@ class RaumUebersichtCard extends HTMLElement {
           && (id.startsWith("climate.") || (id.startsWith("sensor.") && this._dc(id) === "temperature"))))
         .sort((a, b) => a.area.name.localeCompare(b.area.name, "de"));
     }
-    return list.map(({ cfg, area }) => this._buildRoom(cfg, area));
+    const rooms = list.map(({ cfg, area }) => this._buildRoom(cfg, area));
+    const mode = this._config.sort;
+    if (mode !== "config") {
+      rooms.sort((a, b) => (mode === "name" ? 0 : b.score - a.score) || a.name.localeCompare(b.name, "de"));
+    }
+    return rooms;
+  }
+
+  _urgency(r) {
+    const h = this._hass;
+    let score = 0;
+    let level = "";
+    const w = r.win && h.states[r.win];
+    if (w && w.state === "on") {
+      score += 100 + Math.min(60, Math.round((Date.now() - new Date(w.last_changed).getTime()) / 60000));
+      level = "bad";
+    }
+    const hv = this._num(r.hum);
+    if (hv != null) {
+      if (hv >= 70) { score += 60; level = "bad"; }
+      else if (hv >= 60) { score += 25; level = level || "warn"; }
+      else if (hv < 40) { score += 5; }
+    }
+    const v = r.vent && h.states[r.vent];
+    if (v) {
+      const t = norm(v.state);
+      if (/l(ü|ue)ften/.test(t) && !/(kein|nicht|nein)/.test(t)) { score += 30; level = level || "warn"; }
+    }
+    r.score = score;
+    r.level = level;
   }
 
   _dc(id) { const s = this._hass.states[id]; return s ? s.attributes.device_class : undefined; }
@@ -113,10 +150,14 @@ class RaumUebersichtCard extends HTMLElement {
     const win = has(cfg.window) ? cfg.window : this._pick(ids, "binary_sensor", ["window", "door", "opening", "garage_door"]);
     const clim = has(cfg.climate) ? cfg.climate : this._pick(ids, "climate");
     const vent = has(cfg.ventilation) ? cfg.ventilation : ids.find((id) => id.startsWith("sensor.") && id.endsWith("_empfehlung")) || null;
-    return {
+    const ann = cfg.announce || this._config.announce;
+    const room = {
       id: area.area_id, name: cfg.name || area.name, icon: cfg.icon || area.icon || "mdi:door",
       ids, temp, hum, win, clim, vent,
+      announce: vent && ann && (ann.targets || ann.target) ? ann : null,
     };
+    this._urgency(room);
+    return room;
   }
 
   /* ---------- Darstellung ---------- */
@@ -167,12 +208,13 @@ class RaumUebersichtCard extends HTMLElement {
     const winOpen = r.win && this._hass.states[r.win].state === "on";
     const winUnknown = r.win && ["unavailable", "unknown"].includes(this._hass.states[r.win].state);
     const clim = r.clim && this._hass.states[r.clim];
-    const target = clim && clim.attributes.temperature;
+    const pend = clim && this._pend[r.clim];
+    const target = pend && Date.now() - pend.t < 4000 ? pend.v : clim && clim.attributes.temperature;
     const heating = clim && clim.state !== "off" && clim.state !== "unavailable";
     const vent = r.vent && this._hass.states[r.vent];
     const tempTxt = t == null ? "–" : `${t.toFixed(1).replace(".", ",")} °C`;
     return `
-      <button class="room ${winOpen ? "open" : ""}" data-action="open" data-room="${esc(r.id)}">
+      <div class="room ${r.level}" role="button" tabindex="0" data-action="open" data-room="${esc(r.id)}">
         <div class="top">
           <span class="ic"><ha-icon icon="${esc(r.icon)}"></ha-icon></span>
           <span class="name">${esc(r.name)}</span>
@@ -181,10 +223,12 @@ class RaumUebersichtCard extends HTMLElement {
         <div class="temp">${tempTxt}</div>
         <div class="meta">
           ${hv != null ? `<span class="pill ${this._humClass(hv)}"><ha-icon icon="mdi:water-percent"></ha-icon>${Math.round(hv)} %</span>` : ""}
-          ${clim ? `<span class="pill ${heating ? "heat" : ""}"><ha-icon icon="mdi:radiator"></ha-icon>${heating ? (target != null ? `${String(target).replace(".", ",")} °C` : esc(clim.state)) : "Aus"}</span>` : ""}
+          ${clim ? (heating && target != null
+            ? `<span class="ctl"><button class="step" data-action="step" data-dir="-1" data-entity="${esc(r.clim)}" aria-label="Kälter"><ha-icon icon="mdi:minus"></ha-icon></button><span class="pill heat"><ha-icon icon="mdi:radiator"></ha-icon>${String(target).replace(".", ",")} °C</span><button class="step" data-action="step" data-dir="1" data-entity="${esc(r.clim)}" aria-label="Wärmer"><ha-icon icon="mdi:plus"></ha-icon></button></span>`
+            : `<span class="pill ${heating ? "heat" : ""}"><ha-icon icon="mdi:radiator"></ha-icon>${heating ? esc(clim.state) : "Aus"}</span>`) : ""}
         </div>
-        ${vent && !["unknown", "unavailable"].includes(vent.state) ? `<div class="vent"><ha-icon icon="mdi:weather-windy"></ha-icon>${esc(this._fmt(r.vent))}</div>` : ""}
-      </button>`;
+        ${vent && !["unknown", "unavailable"].includes(vent.state) ? `<div class="vent"><ha-icon icon="mdi:weather-windy"></ha-icon><span class="vt">${esc(this._fmt(r.vent))}</span>${r.announce ? `<button class="ann" data-action="announce" data-room="${esc(r.id)}"><ha-icon icon="mdi:bullhorn-outline"></ha-icon>${this._flash === r.id ? "Angesagt" : "Ansagen"}</button>` : ""}</div>` : ""}
+      </div>`;
   }
 
   _deviceRow(id) {
@@ -247,6 +291,41 @@ class RaumUebersichtCard extends HTMLElement {
     if (ns) ns.scrollTop = this._sheetScroll;
   }
 
+  _step(id, dir) {
+    const st = this._hass.states[id];
+    if (!st) return;
+    const step = Number(st.attributes.target_temp_step) || 0.5;
+    const min = st.attributes.min_temp ?? 5;
+    const max = st.attributes.max_temp ?? 30;
+    const p = this._pend[id];
+    const base = p && Date.now() - p.t < 4000 ? p.v : Number(st.attributes.temperature);
+    if (isNaN(base)) return;
+    let v = Math.round((base + dir * step) / step) * step;
+    v = Math.round(Math.min(max, Math.max(min, v)) * 100) / 100;
+    this._pend[id] = { v, t: Date.now() };
+    this._hass.callService("climate", "set_temperature", { entity_id: id, temperature: v });
+    this._sig = "";
+    this._render();
+  }
+
+  _announce(roomId) {
+    const room = this._rooms().find((r) => r.id === roomId);
+    if (!room || !room.announce) return;
+    const a = room.announce;
+    const [domain, service] = String(a.service || "notify.alexa_media").split(".");
+    const t = a.targets || a.target;
+    const targets = Array.isArray(t) ? t : [t];
+    this._hass.callService(domain, service, {
+      message: `${room.name}. ${this._fmt(room.vent)}`,
+      target: targets,
+      data: { type: a.type || "announce" },
+    });
+    this._flash = roomId;
+    this._sig = "";
+    this._render();
+    setTimeout(() => { this._flash = null; this._sig = ""; this._render(); }, 2000);
+  }
+
   _onClick(e) {
     const el = e.target.closest("[data-action]");
     if (!el) return;
@@ -259,6 +338,12 @@ class RaumUebersichtCard extends HTMLElement {
     } else if (action === "toggle") {
       e.stopPropagation();
       this._hass.callService("homeassistant", "toggle", { entity_id: el.dataset.entity });
+    } else if (action === "step") {
+      e.stopPropagation();
+      this._step(el.dataset.entity, Number(el.dataset.dir));
+    } else if (action === "announce") {
+      e.stopPropagation();
+      this._announce(el.dataset.room);
     } else if (action === "info") {
       this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId: el.dataset.entity }, bubbles: true, composed: true }));
     }
@@ -272,9 +357,18 @@ const RUC_STYLE = `
   .grid { display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); gap: 12px; }
   .empty { color: var(--secondary-text-color); font-size: 14px; padding: 8px; }
   button { font: inherit; color: inherit; }
-  .room { text-align: left; cursor: pointer; padding: 12px; border-radius: 16px; border: 1px solid var(--divider-color);
+  .room { text-align: left; cursor: pointer; outline: none; padding: 12px; border-radius: 16px; border: 1px solid var(--divider-color);
     background: var(--ha-card-background, var(--card-background-color)); display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-  .room.open { border-color: var(--error-color); }
+  .room.bad { border-color: var(--error-color); }
+  .room.warn { border-color: var(--warning-color, #f4b400); }
+  .room:focus-visible { box-shadow: 0 0 0 2px var(--primary-color); }
+  .ctl { display: inline-flex; align-items: center; gap: 4px; }
+  .step { width: 28px; height: 28px; padding: 0; border: none; border-radius: 50%; cursor: pointer; display: inline-flex;
+    align-items: center; justify-content: center; background: var(--secondary-background-color); color: var(--primary-text-color); --mdc-icon-size: 16px; }
+  .step:active { transform: scale(.94); }
+  .vt { flex: 1; min-width: 0; }
+  .ann { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; padding: 4px 10px 4px 6px; border-radius: 999px; cursor: pointer;
+    border: 1px solid var(--divider-color); background: none; color: var(--primary-text-color); --mdc-icon-size: 14px; white-space: nowrap; }
   .top { display: flex; align-items: center; gap: 8px; }
   .ic { color: var(--secondary-text-color); --mdc-icon-size: 20px; display: flex; }
   .name { flex: 1; font-size: 15px; font-weight: 500; color: var(--primary-text-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
