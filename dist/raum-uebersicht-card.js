@@ -2,7 +2,7 @@
  * Zeigt alle Räume (Areas) als Karten und öffnet pro Raum ein Popup
  * mit allen Geräten, nach Kategorien sortiert. Keine Entity-IDs nötig.
  */
-const RUC_VERSION = "2.3.0";
+const RUC_VERSION = "2.4.0";
 
 const CATEGORIES = [
   { key: "climate", title: "Heizung und Klima", icon: "mdi:radiator", domains: ["climate", "water_heater"] },
@@ -34,6 +34,12 @@ const BIN_ICONS = {
   carbon_monoxide: ["mdi:molecule-co", "mdi:molecule-co"],
 };
 const SENSOR_ICONS = { carbon_dioxide: "mdi:molecule-co2", co2: "mdi:molecule-co2", pm25: "mdi:air-filter", volatile_organic_compounds: "mdi:air-filter" };
+const WEATHER_ICONS = {
+  sunny: "mdi:weather-sunny", "clear-night": "mdi:weather-night", cloudy: "mdi:weather-cloudy", partlycloudy: "mdi:weather-partly-cloudy",
+  rainy: "mdi:weather-rainy", pouring: "mdi:weather-pouring", snowy: "mdi:weather-snowy", "snowy-rainy": "mdi:weather-snowy-rainy",
+  fog: "mdi:weather-fog", windy: "mdi:weather-windy", "windy-variant": "mdi:weather-windy-variant", lightning: "mdi:weather-lightning",
+  "lightning-rainy": "mdi:weather-lightning-rainy", hail: "mdi:weather-hail", exceptional: "mdi:alert-circle-outline",
+};
 const TOGGLE_DOMAINS = ["light", "switch", "input_boolean", "fan", "humidifier"];
 const DOMAIN_ICONS = {
   climate: "mdi:thermostat", light: "mdi:lightbulb", switch: "mdi:power-socket-eu", input_boolean: "mdi:toggle-switch",
@@ -293,50 +299,56 @@ class RaumUebersichtCard extends HTMLElement {
     return "ok";
   }
 
-  _roomCard(r) {
+  _roomCard(r, idx) {
     const t = this._num(r.temp);
     const hv = this._num(r.hum);
-    const winOpen = r.win && this._hass.states[r.win].state === "on";
+    const wst = r.win && this._hass.states[r.win];
+    const winOpen = wst && wst.state === "on";
+    const winOk = wst && wst.state === "off";
     const clim = r.clim && this._hass.states[r.clim];
     const pend = clim && this._pend[r.clim];
     const target = pend && Date.now() - pend.t < 4000 ? pend.v : clim && clim.attributes.temperature;
     const heating = clim && clim.state !== "off" && clim.state !== "unavailable";
     const vent = r.vent && this._hass.states[r.vent];
     const tt = t == null ? "–" : t.toFixed(1).replace(".", ",");
-    const hc = this._humClass(hv);
     const num = (v) => String(v).replace(".", ",");
-    const btn = (icon, attrs, label, cls = "") => `<button class="step ${cls}" ${attrs} aria-label="${label}"><ha-icon icon="${icon}"></ha-icon></button>`;
-    let heat = "";
-    if (clim && heating && target != null) {
-      heat = `<div class="heat">
-        ${btn("mdi:minus", `data-action="step" data-dir="-1" data-entity="${esc(r.clim)}"`, "Kälter")}
-        <span class="hv2"><ha-icon icon="mdi:fire"></ha-icon>${num(target)} °C</span>
-        ${btn("mdi:plus", `data-action="step" data-dir="1" data-entity="${esc(r.clim)}"`, "Wärmer")}
-        ${btn("mdi:power", `data-action="heat" data-mode="off" data-entity="${esc(r.clim)}"`, "Heizung ausschalten", "pw on")}
-      </div>`;
-    } else if (clim) {
-      heat = `<div class="heat off">
-        <span class="hv2"><ha-icon icon="mdi:radiator-off"></ha-icon>${heating ? esc(clim.state) : "Heizung aus"}</span>
-        ${clim.state !== "unavailable" ? btn("mdi:power", `data-action="heat" data-mode="on" data-entity="${esc(r.clim)}"`, "Heizung einschalten", "pw") : ""}
+    const ob = (icon, attrs, label, txt = "") => `<button class="ob" ${attrs} aria-label="${label}">${txt || `<ha-icon icon="${icon}"></ha-icon>`}</button>`;
+    let hum = "";
+    if (hv != null) {
+      const pos = Math.max(0, Math.min(100, ((hv - 20) / 60) * 100)).toFixed(1);
+      hum = `<div class="hb ${this._humClass(hv)}">
+        <div class="lr"><span class="lb">Luftfeuchte</span><span class="hvv">${Math.round(hv)} %</span></div>
+        <div class="seg"><i></i><i></i><i></i><i></i></div>
+        <div class="mk"><i style="left:${pos}%"></i></div>
       </div>`;
     }
-    const sub = [];
-    if (clim && heating && target != null) sub.push(`<span>Ziel ${num(target)}°</span>`);
-    if (r.power != null && r.power >= 1) sub.push(`<span class="pow"><ha-icon icon="mdi:flash-outline"></ha-icon>${this._fmtW(r.power)}</span>`);
+    let heat = "";
+    if (clim && heating && target != null) {
+      heat = `<div class="hr"><div><div class="lb">Heizung</div><div class="hz">Ziel ${num(Number(target).toFixed(1))} °C</div></div>
+        <div class="hbtns">
+          ${ob("mdi:minus", `data-action="step" data-dir="-1" data-entity="${esc(r.clim)}"`, "Kälter")}
+          ${ob("mdi:plus", `data-action="step" data-dir="1" data-entity="${esc(r.clim)}"`, "Wärmer")}
+          ${ob("", `data-action="heat" data-mode="off" data-entity="${esc(r.clim)}"`, "Heizung ausschalten", "Aus")}
+        </div></div>`;
+    } else if (clim) {
+      heat = `<div class="hr"><div><div class="lb">Heizung</div><div class="hz off">${heating ? esc(clim.state) : "Aus"}</div></div>
+        <div class="hbtns">${clim.state !== "unavailable" ? ob("", `data-action="heat" data-mode="on" data-entity="${esc(r.clim)}"`, "Heizung einschalten", "Heizen") : ""}</div></div>`;
+    }
     const ventShow = vent && !["unknown", "unavailable"].includes(vent.state);
-    const hum = hv != null ? `<div class="hum ${hc}"><ha-icon icon="mdi:water-percent"></ha-icon><span class="hbar"><i style="width:${Math.max(4, Math.min(100, Math.round(hv)))}%"></i></span><span class="hp">${Math.round(hv)} %</span></div>` : "";
     return `
       <div class="room ${r.level}" role="button" tabindex="0" data-action="open" data-room="${esc(r.id)}">
-        <div class="top">
-          <span class="ic"><ha-icon icon="${esc(r.icon)}"></ha-icon></span>
-          <span class="name">${esc(r.name)}</span>
-          ${winOpen ? `<span class="wopen"><ha-icon icon="mdi:window-open-variant"></ha-icon>Fenster offen, ${this._since(r.win)}</span>` : ""}
-          <ha-icon class="chev" icon="mdi:chevron-right"></ha-icon>
+        <div class="rh">
+          <ha-icon class="ri" icon="${esc(r.icon)}"></ha-icon>
+          <span class="rn">${esc(r.name)}</span>
+          ${winOpen ? `<span class="wpill bad"><ha-icon icon="mdi:window-open-variant"></ha-icon>offen seit ${this._since(r.win)}</span>` : winOk ? `<span class="wpill ok"><ha-icon icon="mdi:window-closed-variant"></ha-icon>geschlossen</span>` : ""}
         </div>
-        <div class="body">
-          <div class="tline"><span class="temp">${tt}<small>°C</small></span>${sub.length ? `<div class="sub">${sub.join("")}</div>` : ""}</div>
-          <div class="side">${hum}${heat}</div>
+        <div class="tr">
+          <div class="tc"><div class="lb">Temperatur</div><div class="tv">${tt}<small> °C</small></div>${r.power != null && r.power >= 1 ? `<div class="pf"><ha-icon icon="mdi:flash-outline"></ha-icon>${this._fmtW(r.power)}</div>` : ""}</div>
+          ${r.temp ? this._sparkline(r.temp, idx) : ""}
         </div>
+        ${hum}
+        ${hum && heat ? `<div class="dv"></div>` : ""}
+        ${heat}
         ${ventShow ? `<div class="vent ${r.level}"><ha-icon icon="mdi:weather-windy"></ha-icon><span class="vt">${esc(this._fmt(r.vent))}</span>${r.announce ? `<button class="ann" data-action="announce" data-room="${esc(r.id)}" aria-label="Ansagen"><ha-icon icon="${this._flash === r.id ? "mdi:check" : "mdi:bullhorn-outline"}"></ha-icon></button>` : ""}</div>` : ""}
       </div>`;
   }
@@ -374,7 +386,85 @@ class RaumUebersichtCard extends HTMLElement {
     if (!open && !humid) chips.push(`<span class="pill ok"><ha-icon icon="mdi:check-circle-outline"></ha-icon>Alles in Ordnung</span>`);
     if (withClim) chips.push(`<span class="pill ${heating ? "heat" : ""}"><ha-icon icon="mdi:radiator"></ha-icon>${heating ? `Heizung in ${heating} von ${withClim} ${withClim === 1 ? "Raum" : "Räumen"} an` : "Heizung überall aus"}</span>`);
     if (power != null && power >= 1) chips.push(`<span class="pill"><ha-icon icon="mdi:flash-outline"></ha-icon>${this._fmtW(power)}</span>`);
-    return `<div class="summary">${chips.join("")}</div>`;
+    return chips.join("");
+  }
+
+  _topBar(rooms) {
+    const h = this._hass;
+    const chips = [];
+    const wid = this._config.weather || Object.keys(h.states).find((id) => id.startsWith("weather."));
+    const w = wid && h.states[wid];
+    if (w && w.state !== "unavailable") {
+      const temp = w.attributes.temperature;
+      chips.push(`<span class="pill"><ha-icon icon="${WEATHER_ICONS[w.state] || "mdi:weather-cloudy"}"></ha-icon>${esc(this._fmt(wid))}${temp != null ? `, ${Math.round(temp)} °C` : ""}</span>`);
+    }
+    const oid = this._config.outdoor;
+    if (oid && h.states[oid]) chips.push(`<span class="pill"><ha-icon icon="mdi:thermometer"></ha-icon>Draußen ${esc(this._fmt(oid))}</span>`);
+    const sid = this._config.season || Object.keys(h.states).find((id) => /^(sensor|select)\./.test(id) && /(modus|mode|season|jahreszeit)/.test(id)
+      && ["winter", "sommer", "summer"].includes(norm(h.states[id].state)));
+    const se = sid && h.states[sid];
+    if (se && !["unavailable", "unknown"].includes(se.state)) {
+      const winter = norm(se.state) === "winter";
+      chips.push(`<span class="pill"><ha-icon icon="${winter ? "mdi:snowflake" : "mdi:white-balance-sunny"}"></ha-icon>${esc(winter ? "Winter-Modus" : /sommer|summer/.test(norm(se.state)) ? "Sommer-Modus" : se.state)}</span>`);
+    }
+    chips.push(this._summary(rooms));
+    return `<div class="summary">${chips.join("")}</div>${this._config.hero === false ? "" : this._hero(rooms)}`;
+  }
+
+  _hero(rooms) {
+    const r = rooms.find((x) => x.score > 0);
+    if (!r) return "";
+    const h = this._hass;
+    const winOpen = r.win && h.states[r.win].state === "on";
+    const hv = this._num(r.hum);
+    const vent = r.vent && h.states[r.vent];
+    const ventTxt = vent && !["unknown", "unavailable"].includes(vent.state) ? this._fmt(r.vent) : "";
+    let head; let sub;
+    if (winOpen) { head = "Fenster offen"; sub = `seit ${this._since(r.win)}${hv != null ? `, Feuchte ${Math.round(hv)} %` : ""}`; }
+    else if (hv != null && hv >= 70) { head = "zu feucht"; sub = ventTxt || `Feuchte ${Math.round(hv)} %`; }
+    else { head = "Lüften empfohlen"; sub = ventTxt || (hv != null ? `Feuchte ${Math.round(hv)} %` : ""); }
+    return `
+      <div class="hero ${r.level || "warn"}" role="button" tabindex="0" data-action="open" data-room="${esc(r.id)}">
+        <div class="hx"><div class="hl">Dringendster Raum</div><div class="ht">${esc(r.name)}: ${head}</div>${sub ? `<div class="hs">${esc(sub)}</div>` : ""}</div>
+        <ha-icon icon="${winOpen ? "mdi:window-open-variant" : "mdi:weather-windy"}"></ha-icon>
+      </div>`;
+  }
+
+  async _loadSpark(ids) {
+    if (!ids.length || typeof this._hass.callWS !== "function") return;
+    const key = ids.join(",");
+    const c = this._spark;
+    if (c && (c.loading || (c.key === key && Date.now() - c.t < 600000))) return;
+    const rec = { key, t: Date.now(), loading: true, series: {} };
+    this._spark = rec;
+    const end = Date.now();
+    const start = end - 86400000;
+    try {
+      const res = await this._hass.callWS({
+        type: "history/history_during_period", start_time: new Date(start).toISOString(), end_time: new Date(end).toISOString(),
+        entity_ids: ids, minimal_response: true, no_attributes: true, significant_changes_only: false,
+      });
+      ids.forEach((id) => { rec.series[id] = this._series(res[id], start, end, 48); });
+    } catch (e) { /* Verlauf ist optional */ }
+    rec.loading = false;
+    rec.t = Date.now();
+    this._sig = "";
+    this._render();
+  }
+
+  _sparkline(id, uid) {
+    const v = this._spark && this._spark.series[id];
+    if (!v || v.length < 2) return `<div class="spark"></div>`;
+    const mn = Math.min(...v), mx = Math.max(...v);
+    const span = (mx - mn) || 1;
+    const W = 140, H = 46;
+    const pts = v.map((y, i) => [(i * W) / (v.length - 1), 6 + (1 - (y - mn) / span) * (H - 12)]);
+    const line = pts.map((p, i) => `${i ? "L" : "M"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ");
+    return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Temperaturverlauf 24 Stunden">
+      <defs><linearGradient id="g${uid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="currentColor" stop-opacity=".28"/><stop offset="1" stop-color="currentColor" stop-opacity="0"/></linearGradient></defs>
+      <path d="${line} L${W},${H} L0,${H} Z" fill="url(#g${uid})"/>
+      <path d="${line}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+    </svg>`;
   }
 
   _heat(id, on) {
@@ -577,13 +667,14 @@ class RaumUebersichtCard extends HTMLElement {
     const open = rooms.find((r) => r.id === this._openRoom);
     const title = this._config.title;
     if (open) this._loadHistory(open);
+    this._loadSpark(rooms.map((r) => r.temp).filter(Boolean));
     const html = `
       <style>${RUC_STYLE}</style>
       <ha-card>
         ${title ? `<div class="title">${esc(title)}</div>` : ""}
-        ${this._config.summary === false ? "" : this._summary(rooms)}
+        ${this._config.summary === false ? "" : this._topBar(rooms)}
         <div class="grid" style="--cols:${Number(this._config.columns) || 1}">
-          ${rooms.length ? rooms.map((r) => this._roomCard(r)).join("") : `<p class="empty">Keine Räume gefunden. Lege in Home Assistant Bereiche an und ordne Geräte zu.</p>`}
+          ${rooms.length ? rooms.map((r, i) => this._roomCard(r, i)).join("") : `<p class="empty">Keine Räume gefunden. Lege in Home Assistant Bereiche an und ordne Geräte zu.</p>`}
         </div>
       </ha-card>
       ${open ? this._popup(open) : ""}`;
@@ -676,73 +767,79 @@ const RUC_STYLE = `
   .empty { color: var(--secondary-text-color); font-size: 14px; padding: 8px; }
   .grid { display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); gap: 12px; }
 
-  .summary { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 2px 14px; }
-  .pill { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; padding: 6px 12px 6px 9px; border-radius: 999px; white-space: nowrap;
-    background: color-mix(in srgb, var(--card-background-color) 70%, transparent); color: var(--primary-text-color);
-    border: 1px solid color-mix(in srgb, var(--divider-color) 60%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); --mdc-icon-size: 16px; }
-  .pill.ok { background: color-mix(in srgb, var(--success-color, #43a047) 20%, transparent); color: var(--success-color, #66bb6a); border-color: transparent; }
-  .pill.bad { background: color-mix(in srgb, var(--error-color, #db4437) 22%, transparent); color: var(--error-color, #ef5350); border-color: transparent; }
-  .pill.heat { background: color-mix(in srgb, var(--state-climate-heat-color, #ff8100) 20%, transparent); color: var(--state-climate-heat-color, #ff9800); border-color: transparent; }
+  .summary { display: flex; flex-wrap: nowrap; gap: 8px; margin: 0 2px 14px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .summary::-webkit-scrollbar { display: none; }
+  .pill { flex: none; display: inline-flex; align-items: center; gap: 6px; font-size: 14px; padding: 6px 12px 6px 9px; border-radius: 999px; white-space: nowrap;
+    background: color-mix(in srgb, var(--primary-text-color) 8%, transparent); color: var(--primary-text-color); --mdc-icon-size: 18px; }
+  .pill.ok { background: color-mix(in srgb, var(--success-color, #43a047) 20%, transparent); color: var(--success-color, #66bb6a); }
+  .pill.bad { background: color-mix(in srgb, var(--error-color, #db4437) 22%, transparent); color: var(--error-color, #ef5350); }
+  .pill.heat { background: color-mix(in srgb, var(--state-climate-heat-color, #ff8100) 20%, transparent); color: var(--state-climate-heat-color, #ff9800); }
 
-  .room { position: relative; text-align: left; cursor: pointer; outline: none; min-width: 0; display: flex; flex-direction: column; gap: 14px; padding: 16px;
-    border-radius: 28px; border: 1px solid color-mix(in srgb, var(--divider-color) 55%, transparent);
-    background: color-mix(in srgb, var(--ha-card-background, var(--card-background-color)) 80%, transparent);
-    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); transition: transform .12s ease, border-color .2s ease; }
-  .room:active { transform: scale(.985); }
+  .hero { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 18px; margin: 0 0 14px; border-radius: 20px; cursor: pointer; outline: none;
+    border: 1px solid color-mix(in srgb, var(--warning-color, #f4b400) 40%, transparent); background: color-mix(in srgb, var(--warning-color, #f4b400) 14%, transparent);
+    color: var(--warning-color, #f4b400); --mdc-icon-size: 30px; transition: transform .12s ease; }
+  .hero.bad { border-color: color-mix(in srgb, var(--error-color, #db4437) 45%, transparent); background: color-mix(in srgb, var(--error-color, #db4437) 14%, transparent); color: var(--error-color, #ef5350); }
+  .hero:active { transform: scale(.985); }
+  .hero:focus-visible { box-shadow: 0 0 0 2px var(--primary-color); }
+  .hx { min-width: 0; }
+  .hl { font-size: 13px; opacity: .85; }
+  .ht { font-size: 21px; font-weight: 500; letter-spacing: -.01em; margin: 2px 0; }
+  .hs { font-size: 14px; opacity: .9; }
+
+  .room { position: relative; text-align: left; cursor: pointer; outline: none; min-width: 0; display: flex; flex-direction: column; gap: 16px; padding: 18px;
+    border-radius: 22px; border: 1px solid var(--divider-color); background: var(--ha-card-background, var(--card-background-color)); transition: transform .12s ease, border-color .2s ease; }
+  .room:active { transform: scale(.99); }
   .room:focus-visible { box-shadow: 0 0 0 2px var(--primary-color); }
-  .room.bad { border-color: color-mix(in srgb, var(--error-color, #db4437) 55%, transparent);
-    background: linear-gradient(160deg, color-mix(in srgb, var(--error-color, #db4437) 18%, transparent), transparent 65%), color-mix(in srgb, var(--ha-card-background, var(--card-background-color)) 80%, transparent); }
-  .room.warn { border-color: color-mix(in srgb, var(--warning-color, #f4b400) 45%, transparent);
-    background: linear-gradient(160deg, color-mix(in srgb, var(--warning-color, #f4b400) 14%, transparent), transparent 65%), color-mix(in srgb, var(--ha-card-background, var(--card-background-color)) 80%, transparent); }
+  .room.bad { border-color: color-mix(in srgb, var(--error-color, #db4437) 55%, var(--divider-color)); }
+  .room.warn { border-color: color-mix(in srgb, var(--warning-color, #f4b400) 50%, var(--divider-color)); }
+  .rh { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .ri { flex: none; color: var(--secondary-text-color); --mdc-icon-size: 28px; }
+  .rn { flex: 1; min-width: 0; font-size: 21px; font-weight: 500; letter-spacing: -.01em; color: var(--primary-text-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .wpill { flex: none; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; padding: 6px 12px 6px 9px; border-radius: 999px; --mdc-icon-size: 17px; }
+  .wpill.ok { background: color-mix(in srgb, var(--success-color, #43a047) 20%, transparent); color: var(--success-color, #66bb6a); }
+  .wpill.bad { background: color-mix(in srgb, var(--error-color, #db4437) 22%, transparent); color: var(--error-color, #ef5350); }
 
-  .top { display: flex; align-items: center; gap: 8px; min-width: 0; }
-  .ic { flex: none; width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; --mdc-icon-size: 19px;
-    background: color-mix(in srgb, var(--primary-color) 18%, transparent); color: var(--primary-color); }
-  .room.bad .ic { background: color-mix(in srgb, var(--error-color, #db4437) 22%, transparent); color: var(--error-color, #ef5350); }
-  .room.warn .ic { background: color-mix(in srgb, var(--warning-color, #f4b400) 22%, transparent); color: var(--warning-color, #f4b400); }
-  .name { flex: 1; min-width: 0; font-size: 15px; font-weight: 500; color: var(--primary-text-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .wopen { flex: none; display: inline-flex; align-items: center; gap: 3px; font-size: 12px; padding: 3px 8px 3px 5px; border-radius: 999px; --mdc-icon-size: 14px;
-    background: color-mix(in srgb, var(--error-color, #db4437) 24%, transparent); color: var(--error-color, #ef5350); }
+  .lb { font-size: 14px; color: var(--secondary-text-color); }
+  .tr { display: flex; align-items: flex-end; justify-content: space-between; gap: 14px; }
+  .tc { min-width: 0; }
+  .tv { font-size: 36px; line-height: 1.15; font-weight: 500; letter-spacing: -.02em; color: var(--primary-text-color); }
+  .tv small { font-size: 22px; font-weight: 400; letter-spacing: 0; }
+  .pf { display: inline-flex; align-items: center; gap: 3px; margin-top: 2px; font-size: 12px; color: var(--secondary-text-color); --mdc-icon-size: 14px; }
+  .spark { flex: none; display: block; width: 46%; max-width: 190px; height: 50px; color: var(--state-climate-heat-color, #ff9800); }
 
-  .body { display: flex; align-items: center; gap: 18px; }
-  .tline { flex: none; display: flex; flex-direction: column; gap: 6px; min-width: 100px; }
-  .temp { font-size: 44px; line-height: 1; font-weight: 300; letter-spacing: -.04em; color: var(--primary-text-color); }
-  .temp small { font-size: 16px; font-weight: 400; letter-spacing: 0; margin-left: 2px; color: var(--secondary-text-color); }
-  .sub { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--secondary-text-color); }
-  .side { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
-  .chev { flex: none; color: var(--secondary-text-color); --mdc-icon-size: 20px; opacity: .6; }
+  .lr { display: flex; align-items: baseline; justify-content: space-between; }
+  .hvv { font-size: 16px; font-weight: 500; color: var(--primary-text-color); }
+  .hb.ok .hvv { color: var(--success-color, #66bb6a); }
+  .hb.warn .hvv { color: var(--warning-color, #f4b400); }
+  .hb.bad .hvv { color: var(--error-color, #ef5350); }
+  .seg { display: flex; height: 10px; border-radius: 5px; overflow: hidden; margin-top: 8px; }
+  .seg i { display: block; height: 100%; }
+  .seg i:nth-child(1) { flex: 33.3; background: var(--warning-color, #f4b400); }
+  .seg i:nth-child(2) { flex: 33.3; background: var(--success-color, #43a047); }
+  .seg i:nth-child(3) { flex: 16.7; background: var(--warning-color, #f4b400); }
+  .seg i:nth-child(4) { flex: 16.7; background: var(--error-color, #db4437); }
+  .mk { position: relative; height: 10px; margin-top: 3px; }
+  .mk i { position: absolute; top: 0; width: 3px; height: 10px; border-radius: 2px; background: var(--primary-text-color); transform: translateX(-50%); }
+  .dv { height: 1px; background: var(--divider-color); margin: -2px 0; }
 
-  .hum { display: flex; align-items: center; gap: 8px; --mdc-icon-size: 18px; color: var(--secondary-text-color); }
-  .hbar { flex: 1; height: 6px; border-radius: 3px; overflow: hidden; background: color-mix(in srgb, var(--primary-text-color) 12%, transparent); }
-  .hbar i { display: block; height: 100%; border-radius: 3px; background: var(--secondary-text-color); }
-  .hum.ok .hbar i { background: var(--success-color, #43a047); }
-  .hum.warn .hbar i { background: var(--warning-color, #f4b400); }
-  .hum.bad .hbar i { background: var(--error-color, #db4437); }
-  .hp { font-size: 13px; font-weight: 500; min-width: 38px; text-align: right; color: var(--primary-text-color); }
-  .hum.ok .hp { color: var(--success-color, #66bb6a); }
-  .hum.warn .hp { color: var(--warning-color, #f4b400); }
-  .hum.bad .hp { color: var(--error-color, #ef5350); }
+  .hr { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .hz { font-size: 21px; font-weight: 500; letter-spacing: -.01em; color: var(--primary-text-color); }
+  .hz.off { color: var(--secondary-text-color); }
+  .hbtns { display: flex; gap: 8px; }
+  .ob { min-width: 46px; height: 46px; padding: 0 16px; border-radius: 14px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-size: 16px;
+    border: 1px solid var(--divider-color); background: none; color: var(--primary-text-color); --mdc-icon-size: 22px; transition: transform .1s ease, background .15s ease; }
+  .ob:active { transform: scale(.95); background: color-mix(in srgb, var(--primary-text-color) 10%, transparent); }
 
+  .vent { display: flex; align-items: center; gap: 10px; padding: 12px 12px 12px 14px; border-radius: 14px; font-size: 15px; line-height: 1.35; --mdc-icon-size: 20px;
+    background: color-mix(in srgb, var(--primary-text-color) 7%, transparent); color: var(--secondary-text-color); }
+  .vent.warn { background: color-mix(in srgb, var(--warning-color, #f4b400) 16%, transparent); color: var(--warning-color, #f4b400); }
+  .vent.bad { background: color-mix(in srgb, var(--error-color, #db4437) 16%, transparent); color: var(--error-color, #ef5350); }
+  .vt { flex: 1; min-width: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .ann { flex: none; width: 32px; height: 32px; padding: 0; border: none; border-radius: 50%; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+    background: color-mix(in srgb, currentColor 16%, transparent); color: inherit; --mdc-icon-size: 18px; }
   .tile.open .dic { background: color-mix(in srgb, var(--warning-color, #f4b400) 30%, transparent); color: var(--warning-color, #f4b400); }
   .tile.alert { background: color-mix(in srgb, var(--error-color, #db4437) 22%, var(--secondary-background-color)); }
   .tile.alert .dic { background: var(--error-color, #db4437); color: #fff; }
-  .heat { min-width: 0; display: flex; align-items: center; gap: 4px; padding: 4px; border-radius: 999px; background: color-mix(in srgb, var(--primary-text-color) 8%, transparent); }
-  .hv2 { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; display: inline-flex; align-items: center; justify-content: center; gap: 4px; font-size: 14px; font-weight: 500; white-space: nowrap; --mdc-icon-size: 16px;
-    color: var(--state-climate-heat-color, #ff9800); }
-  .heat.off .hv2 { justify-content: flex-start; padding-left: 8px; color: var(--secondary-text-color); font-weight: 400; }
-  .step { flex: none; width: 30px; height: 30px; padding: 0; border: none; border-radius: 50%; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
-    background: color-mix(in srgb, var(--primary-text-color) 10%, transparent); color: var(--primary-text-color); --mdc-icon-size: 18px; transition: transform .1s ease; }
-  .step:active { transform: scale(.9); }
-  .pw.on { background: color-mix(in srgb, var(--state-climate-heat-color, #ff8100) 28%, transparent); color: var(--state-climate-heat-color, #ff9800); }
-
-  .pow { display: inline-flex; align-items: center; gap: 3px; --mdc-icon-size: 14px; }
-  .vent { margin-top: auto; display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 10px; border-radius: 14px; font-size: 12px; line-height: 1.35; --mdc-icon-size: 16px;
-    background: color-mix(in srgb, var(--primary-text-color) 7%, transparent); color: var(--secondary-text-color); }
-  .vent.warn { background: color-mix(in srgb, var(--warning-color, #f4b400) 16%, transparent); color: var(--primary-text-color); }
-  .vent.bad { background: color-mix(in srgb, var(--error-color, #db4437) 16%, transparent); color: var(--primary-text-color); }
-  .vt { flex: 1; min-width: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-  .ann { flex: none; width: 28px; height: 28px; padding: 0; border: none; border-radius: 50%; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
-    background: color-mix(in srgb, var(--primary-text-color) 12%, transparent); color: var(--primary-text-color); --mdc-icon-size: 16px; }
 
   .overlay { position: fixed; inset: 0; z-index: 9; display: flex; align-items: flex-end; justify-content: center; background: rgba(0,0,0,.5);
     backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); animation: fade .2s ease; }

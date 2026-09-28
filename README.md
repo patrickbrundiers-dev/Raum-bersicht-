@@ -6,12 +6,15 @@ Die Karte liest Räume und Geräte selbst aus den **Bereichen (Areas)** von Home
 
 ## Was sie zeigt
 
-**Zusammenfassung oben**
-- Eine Zeile wie "1 Fenster offen, 1 Raum zu feucht, Heizung in 4 von 5 Räumen an, 240 W" oder "Alles in Ordnung"
+**Kopfzeile**
+- Wischbare Chip-Zeile: Wetter, Außentemperatur, Winter- oder Sommer-Modus, "1 Fenster offen", "1 Raum zu feucht", "Heizung in 4 von 5 Räumen an", Gesamtverbrauch
+- Karte "Dringendster Raum" mit Grund, zum Beispiel "Bad: zu feucht, Feuchte 71 %". Ein Tipp öffnet das Popup des Raums
 
-**Raumkarte**
-- Temperatur, Luftfeuchte (grün, gelb, rot als Schimmel-Ampel) und Fensterstatus mit Dauer
-- Heizung mit Solltemperatur, Plus/Minus-Tasten und Ein/Aus-Taste direkt auf der Karte
+**Raumkarte** (ein Raum pro Zeile)
+- Kopf mit Raumname und Fensterstatus ("geschlossen" oder "offen seit 4 Min")
+- Große Temperatur mit 24-Stunden-Verlauf
+- Luftfeuchte mit farbiger Skala (gelb, grün, gelb, rot von 20 bis 80 %) und Marker als Schimmel-Ampel
+- Heizung mit Zieltemperatur, Minus, Plus und Aus/Heizen direkt auf der Karte
 - Aktueller Stromverbrauch des Raums, falls Leistungssensoren im Bereich liegen
 - Lüftungsempfehlung von Smart Ventilation, falls vorhanden, mit optionalem Ansagen-Button für Alexa
 - Sortierung nach Dringlichkeit: Räume mit offenem Fenster, hoher Feuchte oder Lüftungsempfehlung stehen oben und bekommen einen farbigen Rand
@@ -82,7 +85,11 @@ rooms:
 | `more_sensors` | `true` zeigt die übrigen Sensoren eingeklappt am Ende des Popups, Standard aus |
 | `hide` | Liste von Text-Teilen. Entitäten, deren ID einen davon enthält, verschwinden aus dem Popup und bei "Alles aus" |
 | `rooms` | Auswahl der Räume, Standard alle passenden Bereiche |
-| `summary` | `false` blendet die Zusammenfassung oben aus |
+| `summary` | `false` blendet Chip-Zeile und "Dringendster Raum" aus |
+| `hero` | `false` blendet nur die Karte "Dringendster Raum" aus |
+| `weather` | Wetter-Entität für das Chip, Standard die erste `weather.*`-Entität |
+| `outdoor` | Außentemperatur-Sensor für das Chip "Draußen", zum Beispiel `sensor.aussentemperatur` |
+| `season` | Sensor für Sommer/Winter-Modus. Wird automatisch gefunden, wenn ein Sensor mit "modus" in der ID den Zustand Winter oder Sommer hat |
 | `all_off` | Welche Geräte "Alles aus" ausschaltet, Standard nur `[light]`. Mit `[light, switch]` kommen Steckdosen dazu, Kühlschrank, Gefrierschrank, Router, NAS, Server und Alarm bleiben aber immer an. `false` blendet den Button aus |
 | `exclude` | Räume ausblenden, zum Beispiel `[Balkon]`. Sie zählen dann auch nicht bei "zu feucht" |
 | `show_unavailable` | `true` zeigt auch nicht erreichbare Geräte im Popup, Standard aus |
@@ -111,4 +118,4 @@ In `examples/` liegen zwei YAML-Dashboards, die stattdessen Standardkarten sowie
 
 ## Status
 
-Version 2.3.0. Die Logik ist mit simulierten Home-Assistant-Daten geprüft, aber noch nicht in einer echten Installation getestet. Rückmeldungen und Screenshots helfen.
+Version 2.4.0. Die Logik ist mit simulierten Home-Assistant-Daten geprüft, aber noch nicht in einer echten Installation getestet. Rückmeldungen und Screenshots helfen.
