@@ -6,9 +6,13 @@ Die Karte liest Räume und Geräte selbst aus den **Bereichen (Areas)** von Home
 
 ## Was sie zeigt
 
+**Zusammenfassung oben**
+- Eine Zeile wie "1 Fenster offen, 1 Raum zu feucht, Heizung in 4 von 5 Räumen an, 240 W" oder "Alles in Ordnung"
+
 **Raumkarte**
 - Temperatur, Luftfeuchte (grün, gelb, rot als Schimmel-Ampel) und Fensterstatus mit Dauer
-- Heizung mit Solltemperatur und Plus/Minus-Tasten direkt auf der Karte
+- Heizung mit Solltemperatur, Plus/Minus-Tasten und Ein/Aus-Taste direkt auf der Karte
+- Aktueller Stromverbrauch des Raums, falls Leistungssensoren im Bereich liegen
 - Lüftungsempfehlung von Smart Ventilation, falls vorhanden, mit optionalem Ansagen-Button für Alexa
 - Sortierung nach Dringlichkeit: Räume mit offenem Fenster, hoher Feuchte oder Lüftungsempfehlung stehen oben und bekommen einen farbigen Rand
 
@@ -18,6 +22,9 @@ Die Karte liest Räume und Geräte selbst aus den **Bereichen (Areas)** von Home
 - Bei den Sensoren sind nur die wichtigen sofort sichtbar: Temperatur, Luftfeuchte, CO₂, Leistung, Fenster, Tür, Bewegung und Anwesenheit
 - Alles andere (Batterie, Helligkeit, Signalstärke und so weiter) steckt hinter "Weitere Sensoren anzeigen"
 - Licht und Schalter direkt umschaltbar, Tipp auf ein Gerät öffnet die Detailansicht
+- Button "Alles aus" schaltet alle eingeschalteten Lichter und Steckdosen des Raums aus
+- Verlauf der letzten 7 Tage für Temperatur und Luftfeuchte
+- Energie: aktueller Verbrauch und Tagesverbrauch (aus Energiesensoren mit Langzeitstatistik)
 - Diagnose- und versteckte Entitäten werden ausgeblendet
 
 ## Installation über HACS
@@ -69,6 +76,8 @@ rooms:
 | `title` | Überschrift über den Karten |
 | `columns` | Karten pro Zeile, Standard 2 |
 | `rooms` | Auswahl der Räume, Standard alle passenden Bereiche |
+| `summary` | `false` blendet die Zusammenfassung oben aus |
+| `all_off` | Welche Geräte "Alles aus" ausschaltet, Standard `[light, switch]`. `false` blendet den Button aus |
 | `sort` | `urgency` (Dringendes zuerst), `name` (alphabetisch) oder `config` (Reihenfolge aus `rooms`) |
 | `announce` | Alexa-Ansage, auch pro Raum in `rooms` setzbar. Der Button erscheint nur, wenn ein Raum eine Lüftungsempfehlung hat. Gesprochen wird "Raumname. Empfehlung" |
 
@@ -93,4 +102,4 @@ In `examples/` liegen zwei YAML-Dashboards, die stattdessen Standardkarten sowie
 
 ## Status
 
-Version 1.3.0. Die Logik ist mit simulierten Home-Assistant-Daten geprüft, aber noch nicht in einer echten Installation getestet. Rückmeldungen und Screenshots helfen.
+Version 2.0.0. Die Logik ist mit simulierten Home-Assistant-Daten geprüft, aber noch nicht in einer echten Installation getestet. Rückmeldungen und Screenshots helfen.
